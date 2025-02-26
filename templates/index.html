@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BitoPro網格交易系統</title>
+  <!-- Vuetify CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
+  <!-- Material Design Icons -->
+  <link href="https://fonts.googleapis.com/css?family=Material+Icons" rel="stylesheet">
+  <!-- Vue -->
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
+  <!-- Vuetify JS -->
+  <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
+  <style>
+    body {
+      background: #f5f5f5;
+    }
+    .card-title {
+      font-weight: bold;
+      font-size: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <v-app>
+      <!-- App Bar -->
+      <v-app-bar app color="primary" dark>
+        <v-toolbar-title>BitoPro網格交易系統</v-toolbar-title>
+      </v-app-bar>
+      
+      <!-- 主內容 -->
+      <v-content>
+        <v-container fluid class="mt-5">
+          <v-row>
+            <!-- 交易操作區 -->
+            <v-col cols="12" md="6">
+              <v-card elevation="2" class="pa-4">
+                <v-card-title class="card-title">交易操作</v-card-title>
+                <v-divider class="mb-4"></v-divider>
+                <v-card-text>
+                  <v-form>
+                    <!-- 選擇幣種：模擬 API 回傳的下拉選單，交易中則禁止更改 -->
+                    <v-select
+                      :items="symbols"
+                      label="選擇幣種"
+                      v-model="form.symbol"
+                      :disabled="trading"
+                      required
+                    ></v-select>
+                    <v-text-field
+                      label="下單數量"
+                      v-model.number="form.order_size"
+                      type="number"
+                      required
+                    ></v-text-field>
+                    <v-text-field
+                      label="漲幅百分比 (%)"
+                      v-model.number="form.price_up_percentage"
+                      type="number"
+                      required
+                    ></v-text-field>
+                    <v-text-field
+                      label="跌幅百分比 (%)"
+                      v-model.number="form.price_down_percentage"
+                      type="number"
+                      required
+                    ></v-text-field>
+                  </v-form>
+                  <v-divider class="my-4"></v-divider>
+                  <v-row>
+                    <v-col cols="12" sm="4">
+                      <v-btn
+                        color="success"
+                        block
+                        @click="startTrading"
+                        :disabled="trading"
+                      >開始交易</v-btn>
+                    </v-col>
+                    <v-col cols="12" sm="4">
+                      <v-btn
+                        color="warning"
+                        block
+                        @click="updateParams"
+                        :disabled="!trading"
+                      >更新參數</v-btn>
+                    </v-col>
+                    <v-col cols="12" sm="4">
+                      <v-btn
+                        color="error"
+                        block
+                        @click="stopTrading"
+                        :disabled="!trading"
+                      >停止交易</v-btn>
+                    </v-col>
+                  </v-row>
+                </v-card-text>
+              </v-card>
+            </v-col>
+            
+            <!-- 交易狀態區 -->
+            <v-col cols="12" md="6">
+              <v-card elevation="2" class="pa-4">
+                <v-card-title class="card-title">交易狀態</v-card-title>
+                <v-divider class="mb-4"></v-divider>
+                <v-card-text>
+                  <v-alert type="info" dense outlined v-if="trading">
+                    <div><strong>幣種：</strong>{{ status.symbol }}</div>
+                    <div><strong>下單數量：</strong>{{ status.order_size }}</div>
+                    <div><strong>漲幅百分比：</strong>{{ status.price_up_percentage }}%</div>
+                    <div><strong>跌幅百分比：</strong>{{ status.price_down_percentage }}%</div>
+                    <div><strong>開始時間：</strong>{{ status.startTime }}</div>
+                  </v-alert>
+                  <v-alert type="warning" dense outlined v-else>
+                    目前未在交易
+                  </v-alert>
+                </v-card-text>
+              </v-card>
+            </v-col>
+          </v-row>
+          <!-- 模擬 API：手動刷新狀態 -->
+          <v-row class="mt-4">
+            <v-col cols="12" class="text-center">
+              <v-btn color="primary" @click="fetchStatus">刷新狀態</v-btn>
+            </v-col>
+          </v-row>
+        </v-container>
+      </v-content>
+      
+      <!-- Footer -->
+      <v-footer app padless color="primary" dark>
+        <v-col class="text-center white--text py-3">
+          &copy; 2025 BitoPro 網格交易系統
+        </v-col>
+      </v-footer>
+    </v-app>
+  </div>
+  
+  <script>
+    new Vue({
+      el: '#app',
+      vuetify: new Vuetify(),
+      data: () => ({
+        // 交易參數
+        form: {
+          symbol: '',
+          order_size: 0.01,
+          price_up_percentage: 1,
+          price_down_percentage: 2
+        },
+        trading: false, // 交易狀態
+        status: {},     // 交易中狀態資訊
+        symbols: []     // 模擬 API 回傳的所有幣種列表
+      }),
+      methods: {
+        // 模擬取得所有幣種 API
+        fetchSymbols() {
+          setTimeout(() => {
+            this.symbols = ["BTC", "ETH", "LTC", "XRP", "BCH"];
+            if (!this.form.symbol && this.symbols.length > 0) {
+              this.form.symbol = this.symbols[0];
+            }
+          }, 500);
+        },
+        // 模擬取得交易狀態 API
+        fetchStatus() {
+          setTimeout(() => {
+            if (this.trading) {
+              this.status = Object.assign({}, this.form, { 
+                startTime: this.status.startTime || new Date().toLocaleString() 
+              });
+            } else {
+              this.status = {};
+            }
+          }, 300);
+        },
+        // 開始交易：模擬啟動網格交易策略
+        startTrading() {
+          setTimeout(() => {
+            this.trading = true;
+            this.status = Object.assign({}, this.form, { startTime: new Date().toLocaleString() });
+            console.log("開始交易：", this.status);
+          }, 300);
+        },
+        // 更新參數：僅更新下單數量及漲跌幅，幣種不可變
+        updateParams() {
+          if (!this.trading) return;
+          setTimeout(() => {
+            this.status = Object.assign({}, this.status, {
+              order_size: this.form.order_size,
+              price_up_percentage: this.form.price_up_percentage,
+              price_down_percentage: this.form.price_down_percentage
+            });
+            console.log("更新參數：", this.status);
+          }, 300);
+        },
+        // 停止交易：模擬全部平倉並停止策略
+        stopTrading() {
+          setTimeout(() => {
+            console.log("停止交易：平倉所有部位");
+            this.trading = false;
+            this.status = {};
+          }, 300);
+        }
+      },
+      mounted() {
+        this.fetchSymbols();
+        this.fetchStatus();
+      }
+    });
+  </script>
+</body>
+</html>
