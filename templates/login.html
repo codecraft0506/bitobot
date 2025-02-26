@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登入 - BitoPro網格交易系統</title>
+  <!-- Vuetify CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
+  <!-- Material Design Icons -->
+  <link href="https://fonts.googleapis.com/css?family=Material+Icons" rel="stylesheet">
+  <!-- Vue -->
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
+  <!-- Vuetify JS -->
+  <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
+  <style>
+    body {
+      background: #e0f7fa;
+    }
+    .login-container {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .login-card {
+      max-width: 400px;
+      width: 100%;
+      padding: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <v-app>
+      <v-container class="login-container">
+        <v-card class="login-card" outlined>
+          <v-card-title class="headline justify-center">登入</v-card-title>
+          <v-card-text>
+            <v-form ref="form" v-model="valid">
+              <v-text-field
+                v-model="username"
+                :rules="[v => !!v || '請輸入帳號']"
+                label="帳號"
+                prepend-inner-icon="mdi-account"
+                required
+              ></v-text-field>
+              <v-text-field
+                v-model="password"
+                :rules="[v => !!v || '請輸入密碼']"
+                label="密碼"
+                type="password"
+                prepend-inner-icon="mdi-lock"
+                required
+              ></v-text-field>
+            </v-form>
+          </v-card-text>
+          <v-card-actions>
+            <v-spacer></v-spacer>
+            <v-btn color="primary" @click="login" :disabled="!valid">
+              登入
+            </v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-container>
+    </v-app>
+  </div>
+  
+  <script>
+    new Vue({
+      el: '#app',
+      vuetify: new Vuetify(),
+      data: () => ({
+        username: '',
+        password: '',
+        valid: false
+      }),
+      methods: {
+        login() {
+          if (this.$refs.form.validate()) {
+            // 模擬登入 API，可依需求串接後端驗證
+            console.log('登入中：', this.username, this.password);
+            // 假設登入成功後導向主系統頁面
+            alert('登入成功！導向主系統');
+          }
+        }
+      }
+    });
+  </script>
+</body>
+</html>
