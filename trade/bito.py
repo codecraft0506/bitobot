@@ -48,38 +48,12 @@ def get_balance():
     response = requests.get(url, headers=headers)
     return response.json()
 
-
-def place_order(pair, action, price, amount):
-    """ 下單交易（買入或賣出） """
-    params = {
-        "action": action,  # "BUY" 或 "SELL"
-        "amount": str(amount),  # 購買數量
-        "price": str(price),  # 單價
-        "timestamp": int(time.time() * 1000),
-        "type": "LIMIT",  # "LIMIT" (限價) 或 "MARKET" (市價)
-        "timeInForce": "POST_ONLY",
-    }
+def get_open_orders(pair):
+    """ 查詢掛單 """
+    params = {"identity": EMAIL, "nonce": int(time.time()) * 1000}
 
     headers = get_headers(params)
-    url = f"{BASE_URL}/orders/{pair}"
+    url = f"{BASE_URL}/orders/all/{pair}"
 
-    response = requests.post(url, json=params, headers=headers)
-    return response.json()
-
-
-def get_open_orders(pair):
-    """ 查詢未完成的掛單 """
-    payload = {}
-    headers, _ = get_headers(payload)
-    url = f"{BASE_URL}/orders/{pair}"
     response = requests.get(url, headers=headers)
-    return response.json()
-
-
-def cancel_order(pair, order_id):
-    """ 取消掛單 """
-    payload = {}
-    headers, _ = get_headers(payload)
-    url = f"{BASE_URL}/orders/{pair}/{order_id}"
-    response = requests.delete(url, headers=headers)
     return response.json()
