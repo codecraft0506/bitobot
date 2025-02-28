@@ -5,6 +5,7 @@ from django.contrib.auth import authenticate, login
 import requests
 import json
 
+from .models import OrderHistory
 from .bito import get_balance, get_open_orders
 from .ws import TradeWSManager
 
@@ -68,18 +69,15 @@ def start_trade(request):
         order_size = data.get('order_size')
         up = float(data.get('price_up_percentage')) * 0.01
         down = float(data.get('price_down_percentage')) * 0.01
-        print(pair)
-        print(order_size)
-        print(up)
-        print(down)
         # 單例模式：取得全域唯一的交易機器人管理物件
         wsm = TradeWSManager()
         response = wsm.start(pair=pair, order_size=order_size,
-                             price_increase_percentage=up, price_decrease_percentage=down)
+                             price_increase_percentage=up, price_decrease_percentage=down, user=request.user)
         if response == 0:
             return JsonResponse({'status': '交易機器人成功啟動', 'data': wsm.get_manager_state()})
         else:
-            return JsonResponse({'status': '交易機器人啟動失敗', 'message': '機器人已在運行中'}, status=400)
+            print(response)
+            return JsonResponse({'status': '交易機器人啟動失敗', 'message': response}, status=400)
 
 
 @csrf_exempt
@@ -90,7 +88,8 @@ def stop_trade(request):
         if response == 0:
             return JsonResponse({"status": "交易機器人已停止"})
         else:
-            return JsonResponse({'status': '交易機器人停止失敗', 'message': '無法停止機器人'}, status=400)
+            print(response)
+            return JsonResponse({'status': '交易機器人停止失敗', 'message': response}, status=400)
 
 
 @csrf_exempt
@@ -106,7 +105,8 @@ def update_trade(request):
         if response == 0:
             return JsonResponse({'status': '更新成功', 'data': wsm.get_manager_state()})
         else:
-            return JsonResponse({'status': '更新失敗', 'message': '更新時發生錯誤'}, status=400)
+            print(response)
+            return JsonResponse({'status': '更新失敗', 'message': response}, status=400)
 
 
 @csrf_exempt
@@ -138,4 +138,11 @@ def submit_order(request):
         if response == 0:
             return JsonResponse({'status': '交易機器人成功啟動', 'data': wsm.get_manager_state()})
         else:
-            return JsonResponse({'status': '交易機器人啟動失敗', 'message': '請確認機器人是否已在運行'}, status=400)
+            return JsonResponse(response)
+        
+@csrf_exempt
+def get_order_history(request):
+    user = request.user  # 取得當前登入的使用者
+    orders = OrderHistory.objects.filter(user=user).values("id", "timestamp", "symbol", "price", "order_type", "quantity")
+    return JsonResponse(list(orders), safe=False)
+
