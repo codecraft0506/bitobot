@@ -10,7 +10,4 @@ class TransactionStatus(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.profile.user.username} - {self.status}"
-
-    def __str__(self):
-        return f"{self.profile.user.username} - {self.status}"
+        return f"{self.profile.username} - {self.status}"

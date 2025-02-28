@@ -1,3 +1,4 @@
+{% verbatim %}
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -31,7 +32,7 @@
       </v-app-bar>
       
       <!-- 主內容 -->
-      <v-content>
+      <v-main>
         <v-container fluid class="mt-5">
           <v-row>
             <!-- 交易操作區 -->
@@ -41,7 +42,6 @@
                 <v-divider class="mb-4"></v-divider>
                 <v-card-text>
                   <v-form>
-                    <!-- 選擇幣種：模擬 API 回傳的下拉選單，交易中則禁止更改 -->
                     <v-select
                       :items="symbols"
                       label="選擇幣種"
@@ -105,12 +105,12 @@
                 <v-card-title class="card-title">交易狀態</v-card-title>
                 <v-divider class="mb-4"></v-divider>
                 <v-card-text>
-                  <v-alert type="info" dense outlined v-if="trading">
-                    <div><strong>幣種：</strong>{{ status.symbol }}</div>
-                    <div><strong>下單數量：</strong>{{ status.order_size }}</div>
-                    <div><strong>漲幅百分比：</strong>{{ status.price_up_percentage }}%</div>
-                    <div><strong>跌幅百分比：</strong>{{ status.price_down_percentage }}%</div>
-                    <div><strong>開始時間：</strong>{{ status.startTime }}</div>
+                  <v-alert type="info" dense outlined v-if="trading && status && Object.keys(status).length">
+                    <div><strong>幣種：</strong>[[ status.pair ]]</div>
+                    <div><strong>下單數量：</strong>[[ status.order_size ]]</div>
+                    <div><strong>漲幅百分比：</strong>[[ status.price_up_percentage ]]%</div>
+                    <div><strong>跌幅百分比：</strong>[[ status.price_down_percentage ]]%</div>
+                    <div><strong>開始時間：</strong>[[ status.start_time ]]</div>
                   </v-alert>
                   <v-alert type="warning" dense outlined v-else>
                     目前未在交易
@@ -119,19 +119,40 @@
               </v-card>
             </v-col>
           </v-row>
-          <!-- 模擬 API：手動刷新狀態 -->
+          
+          <!-- 帳戶餘額區 -->
+          <v-row class="mt-4">
+            <v-col cols="12">
+              <v-card elevation="2" class="pa-4">
+                <v-card-title class="card-title">帳戶餘額</v-card-title>
+                <v-divider class="mb-4"></v-divider>
+                <v-card-text>
+                  <div v-if="balance && balance.length > 0">
+                    <div v-for="(item, index) in balance" :key="index">
+                      <strong>[[ item.currency.toUpperCase() ]]:</strong> [[ item.available ]]
+                    </div>
+                  </div>
+                  <div v-else>
+                    <v-progress-circular indeterminate color="primary"></v-progress-circular>
+                  </div>
+                </v-card-text>
+              </v-card>
+            </v-col>
+          </v-row>
+          
+          <!-- 刷新狀態按鈕 -->
           <v-row class="mt-4">
             <v-col cols="12" class="text-center">
               <v-btn color="primary" @click="fetchStatus">刷新狀態</v-btn>
             </v-col>
           </v-row>
         </v-container>
-      </v-content>
+      </v-main>
       
       <!-- Footer -->
       <v-footer app padless color="primary" dark>
         <v-col class="text-center white--text py-3">
-          &copy; 2025 BitoPro 網格交易系統
+          © 2025 BitoPro 網格交易系統
         </v-col>
       </v-footer>
     </v-app>
@@ -141,74 +162,140 @@
     new Vue({
       el: '#app',
       vuetify: new Vuetify(),
+      delimiters: ['[[', ']]'],
       data: () => ({
-        // 交易參數
         form: {
           symbol: '',
           order_size: 0.01,
           price_up_percentage: 1,
           price_down_percentage: 2
         },
-        trading: false, // 交易狀態
-        status: {},     // 交易中狀態資訊
-        symbols: []     // 模擬 API 回傳的所有幣種列表
+        trading: false,
+        status: {},
+        symbols: [],
+        balance: null
       }),
       methods: {
-        // 模擬取得所有幣種 API
-        fetchSymbols() {
-          setTimeout(() => {
-            this.symbols = ["BTC", "ETH", "LTC", "XRP", "BCH"];
+        async fetchSymbols() {
+          try {
+            const response = await fetch('/pairs/');
+            const data = await response.json();
+            // 假設 data 結構中有 data 陣列
+            this.symbols = data.data.map(item => item.pair);
             if (!this.form.symbol && this.symbols.length > 0) {
               this.form.symbol = this.symbols[0];
             }
-          }, 500);
+          } catch (error) {
+            console.error('載入交易對失敗', error);
+          }
         },
-        // 模擬取得交易狀態 API
-        fetchStatus() {
-          setTimeout(() => {
-            if (this.trading) {
-              this.status = Object.assign({}, this.form, { 
-                startTime: this.status.startTime || new Date().toLocaleString() 
-              });
+        async fetchBalance() {
+          try {
+            const response = await fetch('/balance/');
+            const data = await response.json();
+            this.balance = data.data;
+          } catch (error) {
+            console.error('載入餘額失敗', error);
+          }
+        },
+        async fetchStatus() {
+          try {
+            const response = await fetch('/check_trade', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({})
+            });
+            const data = await response.json();
+            if (data && data.pair) {
+              this.trading = true;
+              this.status = data;
             } else {
+              this.trading = false;
               this.status = {};
             }
-          }, 300);
+          } catch (error) {
+            console.error('載入交易狀態失敗', error);
+          }
         },
-        // 開始交易：模擬啟動網格交易策略
-        startTrading() {
-          setTimeout(() => {
-            this.trading = true;
-            this.status = Object.assign({}, this.form, { startTime: new Date().toLocaleString() });
-            console.log("開始交易：", this.status);
-          }, 300);
-        },
-        // 更新參數：僅更新下單數量及漲跌幅，幣種不可變
-        updateParams() {
-          if (!this.trading) return;
-          setTimeout(() => {
-            this.status = Object.assign({}, this.status, {
-              order_size: this.form.order_size,
-              price_up_percentage: this.form.price_up_percentage,
-              price_down_percentage: this.form.price_down_percentage
+        async startTrading() {
+          try {
+            const response = await fetch('/start_trade', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(this.form)
             });
-            console.log("更新參數：", this.status);
-          }, 300);
+            const data = await response.json();
+            if (data.status === '交易機器人成功啟動') {
+              this.trading = true;
+              this.status = data.data;
+            } else {
+              alert('啟動失敗：' + (data.message || '未知錯誤'));
+            }
+          } catch (error) {
+            console.error('啟動交易失敗', error);
+            alert('啟動交易失敗，請重試');
+          }
         },
-        // 停止交易：模擬全部平倉並停止策略
-        stopTrading() {
-          setTimeout(() => {
-            console.log("停止交易：平倉所有部位");
-            this.trading = false;
-            this.status = {};
-          }, 300);
+        async updateParams() {
+          if (!this.trading) return;
+          try {
+            const response = await fetch('/update_trade', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                order_size: this.form.order_size,
+                price_up_percentage: this.form.price_up_percentage,
+                price_down_percentage: this.form.price_down_percentage
+              })
+            });
+            const data = await response.json();
+            if (data.status === '更新成功') {
+              this.status = data.data;
+              alert('更新成功');
+            } else {
+              alert('更新失敗：' + (data.message || '未知錯誤'));
+            }
+          } catch (error) {
+            console.error('更新參數失敗', error);
+            alert('更新參數失敗，請重試');
+          }
+        },
+        async stopTrading() {
+          try {
+            const response = await fetch('/stop_trade', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({})
+            });
+            const data = await response.json();
+            if (data.status === '交易機器人已停止') {
+              this.trading = false;
+              this.status = {};
+              alert('交易機器人已停止');
+            } else {
+              alert('停止失敗：' + (data.message || '未知錯誤'));
+            }
+          } catch (error) {
+            console.error('停止交易失敗', error);
+            alert('停止交易失敗，請重試');
+          }
         }
       },
       mounted() {
         this.fetchSymbols();
+        this.fetchBalance();
         this.fetchStatus();
       }
     });
   </script>
 </body>
 </html>
+{% endverbatim %}
