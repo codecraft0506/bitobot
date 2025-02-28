@@ -67,17 +67,14 @@
 
     <script>
         document.getElementById("tradeForm").addEventListener("submit", function(event) {
-            event.preventDefault();  // 阻止表單的默認提交行為
-
+            event.preventDefault();
             const formData = {
                 symbol: document.getElementById("symbol").value,
                 order_size: parseFloat(document.getElementById("order_size").value),
                 price_up_percentage: parseFloat(document.getElementById("price_up_percentage").value),
                 price_down_percentage: parseFloat(document.getElementById("price_down_percentage").value)
             };
-
-            // 發送到後端 API
-            fetch("/trade/submit-order/", {
+            fetch("/submit-order/", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
