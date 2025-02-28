@@ -64,10 +64,14 @@ def home(request):
 def start_trade(request):
     if request.method == 'POST':
         data = json.loads(request.body)
-        pair = data.get('pair')
+        pair = data.get('symbol')
         order_size = data.get('order_size')
-        up = data.get('price_up_percentage')
-        down = data.get('price_down_percentage')
+        up = float(data.get('price_up_percentage')) * 0.01
+        down = float(data.get('price_down_percentage')) * 0.01
+        print(pair)
+        print(order_size)
+        print(up)
+        print(down)
         # 單例模式：取得全域唯一的交易機器人管理物件
         wsm = TradeWSManager()
         response = wsm.start(pair=pair, order_size=order_size,
@@ -94,8 +98,8 @@ def update_trade(request):
     if request.method == 'POST':
         data = json.loads(request.body)
         order_size = data.get('order_size')
-        up = data.get('price_up_percentage')
-        down = data.get('price_down_percentage')
+        up = float(data.get('price_up_percentage')) * 0.01
+        down = float(data.get('price_down_percentage')) * 0.01
         wsm = TradeWSManager()
         response = wsm.update(order_size=order_size,
                               price_increase_percentage=up, price_decrease_percentage=down)

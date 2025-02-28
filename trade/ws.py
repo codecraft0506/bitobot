@@ -23,28 +23,32 @@ BASE_URL = "https://api.bitopro.com/v3"
 
 class TradeWSManager:
     _instance = None
+    _initialized = False
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(TradeWSManager, cls).__new__(cls)
         return cls._instance
-
+    
     def __init__(self):
-        self.pair = None
-        self.order_size = None
-        self.is_running = False
-        self.price_increase_percentage = None
-        self.price_decrease_percentage = None
-        self.start_time = None
-        self.ws = None
-        self.thread = None
-        self.sell_order_id = None  # 賣單 ID
-        self.buy_order_id = None   # 買單 ID
+        if not self._initialized:
+            self.pair = None
+            self.order_size = None
+            self.is_running = False
+            self.price_increase_percentage = None
+            self.price_decrease_percentage = None
+            self.start_time = None
+            self.ws = None
+            self.thread = None
+            self.sell_order_id = None  # 賣單 ID
+            self.buy_order_id = None 
+            self._initialized = True
+            print('WSM 初始化成功')
 
     def on_message(self, ws, message):
         """監聽 WebSocket 訂單狀態變化"""
         response = json.loads(message)
-        print(f"📊 訂單更新: {response}")
+        print(f"📊 訂單更新:")
 
         if ('event' in response and response['event'] == 'ACTIVE_ORDERS' and
             'data' in response and self.pair in response['data']):
@@ -114,8 +118,8 @@ class TradeWSManager:
         return {
             "pair": self.pair,
             "order_size": self.order_size,
-            "price_up_percentage": self.price_increase_percentage,
-            "price_down_percentage": self.price_decrease_percentage,
+            "price_up_percentage": self.price_increase_percentage * 100,
+            "price_down_percentage": self.price_decrease_percentage * 100,
             "start_time": self.start_time
         }
 
@@ -152,7 +156,7 @@ class TradeWSManager:
         response = requests.post(url, json=params, headers=headers)
         if response.status_code == 200:
             order_id = response.json().get("orderId")
-            print(f"✅ {action} 限價單建立成功: 價格 {price}, 訂單 ID: {order_id}")
+            print(f"✅ {action} 限價單建立成功: 價格 {str(int(price))}, 訂單 ID: {order_id}")
             return order_id
         else:
             print(f"❌ 下單失敗: {response.json()}")
@@ -176,6 +180,7 @@ class TradeWSManager:
     def cancel_order(self, order_id):
         """取消掛單"""
         if order_id is None:
+            print(f"❌ 訂單取消失敗: 找不到訂單 {order_id}")
             return
         params = {"identity": EMAIL, "nonce": int(time.time() * 1000)}
         headers = self.get_headers(params)
