@@ -278,7 +278,7 @@
               if (response.data.success) {
                 let balanceObj = response.data.data.balance;
                 this.balanceData = balanceObj.data || []; 
-                this.successMessages.push('查詢餘額成功');
+                // this.successMessages.push('查詢餘額成功');
                 this.errorMessages = [];
               } else {
                 this.errorMessages.push(response.data.error);
@@ -300,7 +300,7 @@
                 if (Array.isArray(this.pairs) && this.pairs.length > 0) {
                   this.trade.symbol = this.pairs[0].pair;
                 }
-                this.successMessages.push('取得交易對成功');
+                // this.successMessages.push('取得交易對成功');
                 this.errorMessages = [];
               } else {
                 this.errorMessages.push(response.data.error);
@@ -410,7 +410,7 @@
             .then(response => {
               if (response.data.success) {
                 this.orderHistory = response.data.data;
-                this.successMessages.push('成功獲取訂單歷史');
+                // this.successMessages.push('成功獲取訂單歷史');
                 this.errorMessages = [];
               } else {
                 this.errorMessages.push(response.data.error);
@@ -424,6 +424,7 @@
         }
       },
       mounted() {
+        this.checkTrade();
         this.getBalance();
         this.fetchPairs();
         this.getOrderHistory();  // 確保頁面加載時取得訂單歷史
