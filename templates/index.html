@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>BitoPro 網格交易</title>
+  <title>交易介面</title>
   <!-- Vuetify CSS -->
   <link href="https://cdn.jsdelivr.net/npm/vuetify@2.6.0/dist/vuetify.min.css" rel="stylesheet">
   <!-- Google Fonts: Roboto 與 Material Design Icons -->
@@ -57,7 +57,7 @@
       <!-- 上方導覽列：增加手機版導覽圖示 -->
       <v-app-bar app clipped-left>
         <v-app-bar-nav-icon @click="drawer = !drawer"></v-app-bar-nav-icon>
-        <v-toolbar-title>BitoPro 網格交易</v-toolbar-title>
+        <v-toolbar-title>交易機器人介面</v-toolbar-title>
       </v-app-bar>
       
       <!-- 主要內容區 -->
@@ -304,11 +304,11 @@
           this.loading = true;
           axios.post('/start_trade/', this.trade)
             .then(response => {
+              this.checkTrade();  // 確保交易狀態會立即更新
               if (response.data.success) {
                 this.success = '交易開始成功';
                 this.error = '';
                 this.tradeStatus = response.data.data;
-                this.checkTrade();  // 確保交易狀態會立即更新
               } else {
                 this.error = response.data.error;
                 this.success = '';
@@ -325,7 +325,6 @@
             .then(response => {
               if (response.data.success) {
                 this.tradeStatus = response.data.data;
-                console.log(this.tradeStatus);
                 this.success = '取得交易狀態成功';
                 this.error = '';
               } else {
@@ -343,11 +342,11 @@
           this.loading = true;
           axios.post('/stop_trade/')
             .then(response => {
+              this.checkTrade();  // 確保交易狀態會立即更新
               if (response.data.success) {
                 this.success = response.data.data.message;
                 this.error = '';
                 this.tradeStatus = null;
-                this.checkTrade();  // 確保交易狀態會立即更新
               } else {
                 this.error = response.data.error;
                 this.success = '';
@@ -362,11 +361,11 @@
           this.loading = true;
           axios.post('/update_trade/', this.trade)
             .then(response => {
+              this.checkTrade();  // 確保交易狀態會立即更新
               if (response.data.success) {
                 this.success = '交易更新成功';
                 this.error = '';
                 this.tradeStatus = response.data.data;
-                this.checkTrade();  // 確保交易狀態會立即更新
               } else {
                 this.error = response.data.error;
                 this.success = '';
