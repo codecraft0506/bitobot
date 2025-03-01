@@ -170,7 +170,6 @@ class TradeWSManager:
             if data.get('pair') == pair:
                 self.precision = int(data.get('quotePrecision'))
 
-        
         self.error_message = []  # 清空錯誤訊息列表
         self.pair = pair
         self.order_size = order_size

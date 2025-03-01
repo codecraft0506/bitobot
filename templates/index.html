@@ -308,9 +308,7 @@
                 this.success = '交易開始成功';
                 this.error = '';
                 this.tradeStatus = response.data.data;
-                this.$nextTick(() => {
-                  this.checkTrade();  // 確保立刻更新交易狀態
-                });
+                this.checkTrade();  // 確保交易狀態會立即更新
               } else {
                 this.error = response.data.error;
                 this.success = '';
@@ -348,9 +346,7 @@
                 this.success = response.data.data.message;
                 this.error = '';
                 this.tradeStatus = null;
-                this.$nextTick(() => {
-                  this.checkTrade();  // 確保立刻更新交易狀態
-                });
+                this.checkTrade();  // 確保交易狀態會立即更新
               } else {
                 this.error = response.data.error;
                 this.success = '';
@@ -369,9 +365,7 @@
                 this.success = '交易更新成功';
                 this.error = '';
                 this.tradeStatus = response.data.data;
-                this.$nextTick(() => {
-                  this.checkTrade();  // 確保立刻更新交易狀態
-                });
+                this.checkTrade();  // 確保交易狀態會立即更新
               } else {
                 this.error = response.data.error;
                 this.success = '';
