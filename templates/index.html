@@ -2,6 +2,8 @@
 <html>
 <head>
   <meta charset="UTF-8">
+  <!-- 加入 viewport meta 標籤 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>BitoPro 網格交易系統</title>
   <!-- Vuetify CSS -->
   <link href="https://cdn.jsdelivr.net/npm/vuetify@2.6.0/dist/vuetify.min.css" rel="stylesheet">
@@ -11,6 +13,10 @@
   <style>
     body { font-family: 'Roboto', sans-serif; }
     .status-table td { padding: 8px 16px; }
+    /* 手機裝置下調整表格內邊距 */
+    @media (max-width: 600px) {
+      .status-table td { padding: 4px 8px; }
+    }
   </style>
 </head>
 <body>
@@ -48,7 +54,7 @@
       <!-- 上方導覽列：包含深色模式切換 -->
       <v-app-bar app clipped-left>
         <v-app-bar-nav-icon @click="drawer = !drawer"></v-app-bar-nav-icon>
-        <v-toolbar-title>BitoPro 網格交易系統</v-toolbar-title>
+        <v-toolbar-title>網格交易系統</v-toolbar-title>
         <v-spacer></v-spacer>
         <v-switch v-model="$vuetify.theme.dark" label="深色模式" inset></v-switch>
       </v-app-bar>
@@ -214,7 +220,7 @@
     new Vue({
       el: '#app',
       delimiters: ['[[', ']]'],
-      vuetify: new Vuetify(), // 若預設要深色模式，可設定 theme: { dark: true }
+      vuetify: new Vuetify(), // 可在此預設深色模式：theme: { dark: true }
       data: {
         drawer: false,
         currentTab: 'trade',
