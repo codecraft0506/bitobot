@@ -10,7 +10,6 @@ import websocket
 from datetime import datetime
 from dotenv import load_dotenv
 
-from django.http import JsonResponse
 from django.contrib.auth.models import User
 from .models import OrderHistory
 
@@ -48,8 +47,18 @@ class TradeWSManager:
             self.sell_order_id = None  # 賣單 ID
             self.buy_order_id = None
             self.user = None 
+            self.log_messages = []
             self._initialized = True
             print('WSM 初始化成功')
+
+    def log_print(self, message):
+        self.log_messages.append(message)
+
+    def log(self):
+        while True:
+            if self.log_messages:
+                yield self.log_messages.pop(0)
+            time.sleep(1)
 
     def on_message(self, ws, message):
         """監聽 WebSocket 訂單狀態變化"""
@@ -62,6 +71,13 @@ class TradeWSManager:
             for order in orders:
                 print(order)
                 if order.get('status') == 0 : print('訂單交易中')
+                if order.get('status') == 1 :
+                    self.create_order_history(
+                            id=order.get('id'),
+                            timestamp=order.get('updatedTimestamp'),
+                            price=order.get('avgExecutionPrice'),
+                            order_type=order.get('action'), 
+                            quantity=order.get('executedAmount'))
                 if (order.get('status') == 2):
                     if order.get('id') == self.sell_order_id:
                         print("賣單完全成交，取消買單並重新下單")
@@ -112,7 +128,7 @@ class TradeWSManager:
 
     def start(self, pair, order_size, price_increase_percentage, price_decrease_percentage, user):
         if self.is_running:
-            return JsonResponse()
+            return {'error' : '機器人運作中'}
         
         self.error_message = {}
         self.pair = pair
@@ -154,12 +170,16 @@ class TradeWSManager:
 
     def get_manager_state(self):
         """回傳目前交易機器人狀態資料（字典格式）"""
+        if (not self.is_running) : return {'status': False, 'message' : 'check : 機器人未啟動/停止運作'}
         return {
-            "pair": self.pair,
-            "order_size": self.order_size,
-            "price_up_percentage": self.price_increase_percentage * 100,
-            "price_down_percentage": self.price_decrease_percentage * 100,
-            "start_time": self.start_time
+            'status' : True,
+            'message' :{
+                "pair": self.pair,
+                "order_size": self.order_size,
+                "price_up_percentage": self.price_increase_percentage * 100,
+                "price_down_percentage": self.price_decrease_percentage * 100,
+                "start_time": self.start_time
+            }
         }
 
     def get_headers(self, params):
@@ -196,10 +216,12 @@ class TradeWSManager:
         if response.status_code == 200:
             order_id = response.json().get("orderId")
             print(f"✅ {action} 限價單建立成功: 價格 {str(int(price))}, 訂單 ID: {order_id}")
+            self.log_print({'status' : True, 'message' : f'{action} 限價單建立成功: 價格 {str(int(price))}, 訂單 ID: {order_id}'})
             return order_id
         else:
             print(f"❌ 下單失敗: {response.json()}")
             self.error_message['下單失敗'] = response.json()
+            self.log_print({'status' : True, 'message' : f'{action} 限價單建立失敗: {response.json()}'})
             return None
 
     def place_initial_orders(self):

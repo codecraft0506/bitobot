@@ -2,6 +2,8 @@ from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import authenticate, login
+from django.http import StreamingHttpResponse
+
 import requests
 import json
 
@@ -146,3 +148,7 @@ def get_order_history(request):
     orders = OrderHistory.objects.filter(user=user).values("id", "timestamp", "symbol", "price", "order_type", "quantity")
     return JsonResponse(list(orders), safe=False)
 
+@csrf_exempt
+def event_log(request):
+    wsm = TradeWSManager()
+    return StreamingHttpResponse(wsm.log())
