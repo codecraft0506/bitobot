@@ -117,11 +117,9 @@ class TradeWSManager:
         # 將 timestamp 轉換為 datetime 物件
         ts = None
         if isinstance(timestamp, (int, float)):
-            # 假設 timestamp 為毫秒數
             ts = datetime.fromtimestamp(timestamp / 1000)
         elif isinstance(timestamp, str):
             try:
-                # 嘗試解析 ISO 格式字串（剝除尾端的 "Z"）
                 ts = datetime.fromisoformat(timestamp.rstrip("Z"))
             except Exception:
                 ts = datetime.now()
@@ -129,7 +127,7 @@ class TradeWSManager:
             ts = datetime.now()
 
         OrderHistory.objects.update_or_create(
-            order_id=id,  # 使用 order_id 作為查找依據
+            order_id=id,
             defaults={
                 "user": user_obj,
                 "timestamp": ts,
@@ -141,8 +139,9 @@ class TradeWSManager:
         )
 
     def on_error(self, ws, error):
-        self.error_message.append(f"WebSocket 錯誤: {error}")
-        print(f"❌ WebSocket 錯誤: {error}")
+        err_msg = f"WebSocket 錯誤: {error}"
+        self.error_message.append(err_msg)
+        print(f"❌ {err_msg}")
 
     def on_close(self, ws, close_status_code, close_msg):
         print("🔴 WebSocket 連線關閉")
@@ -151,7 +150,6 @@ class TradeWSManager:
         print("✅ WebSocket 連線成功，開始監聽訂單狀態")
         self.connected_event.set()  # 標記 WS 連線成功
         self.place_initial_orders()
-        # 若初始掛單全部失敗，記錄錯誤訊息並停止機器人
         if not self.sell_order_id and not self.buy_order_id:
             error_msg = "初始掛單全部失敗，請檢查 API 金鑰或網路連線"
             self.error_message.append(error_msg)
@@ -177,7 +175,6 @@ class TradeWSManager:
             'nonce': int(time.time() * 1000)
         }
 
-        # 建立 WebSocketApp 時不直接傳入 sslopt 參數
         self.ws = websocket.WebSocketApp(
             self.ws_url,
             header=self.get_headers(params),
@@ -186,7 +183,6 @@ class TradeWSManager:
             on_error=self.on_error,
             on_close=self.on_close
         )
-        # 在 run_forever 時傳入 sslopt 參數以關閉憑證驗證（僅用於開發環境）
         self.thread = threading.Thread(
             target=lambda: self.ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE}),
             daemon=True
@@ -194,14 +190,12 @@ class TradeWSManager:
         self.is_running = True
         self.thread.start()
         
-        # 等待 WS 連線，超過 5 秒則認定連線失敗
         if not self.connected_event.wait(timeout=5):
             self.error_message.append("WS 連線超時")
             print("❌ WS 連線超時")
             self.stop()
             return "\n".join(self.error_message)
 
-        # 若在連線後已有錯誤訊息，則直接回傳
         if self.error_message:
             self.stop()
             return "\n".join(self.error_message)
@@ -219,7 +213,6 @@ class TradeWSManager:
         return "\n".join(self.error_message) if self.error_message else 0
 
     def get_manager_state(self):
-        """回傳目前交易機器人狀態資料（字典格式）"""
         return {
             "pair": self.pair,
             "order_size": self.order_size,
@@ -229,7 +222,6 @@ class TradeWSManager:
         }
 
     def get_headers(self, params):
-        """產生 BitoPro API 驗證標頭"""
         payload = base64.urlsafe_b64encode(json.dumps(params).encode('utf-8')).decode('utf-8')
         signature = hmac.new(
             bytes(API_SECRET, 'utf-8'),
@@ -243,16 +235,14 @@ class TradeWSManager:
         }
 
     def get_current_price(self):
-        """取得當前市場價格"""
         url = f"{BASE_URL}/tickers/{self.pair}"
         response = requests.get(url)
         data = response.json()
         return float(data["data"]["lastPrice"])
 
     def place_order(self, action, price):
-        """下限價單"""
         params = {
-            "action": action,  # "BUY" 或 "SELL"
+            "action": action,
             "amount": str(self.order_size),
             "price": str(round(price, 2)),
             "type": "LIMIT",
@@ -263,28 +253,25 @@ class TradeWSManager:
         response = requests.post(url, json=params, headers=headers)
         if response.status_code == 200:
             order_id = response.json().get("orderId")
-            print(f"✅ {action} 限價單建立成功: 價格 {str(round(price, 2))}, 訂單 ID: {order_id}")
-            self.log_print({'status': True, 'message': f'{action} 限價單建立成功: 價格 {str(round(price, 2))}, 訂單 ID: {order_id}'})
+            msg = f"✅ {action} 限價單建立成功: 價格 {str(round(price, 2))}, 訂單 ID: {order_id}"
+            print(msg)
+            self.log_print({'status': True, 'message': msg})
             return order_id
         else:
             error_info = response.json()
             error_msg = f"❌ 下單失敗: {error_info}"
             print(error_msg)
             self.error_message.append(error_msg)
-            self.log_print({'status': False, 'message': f'{action} 限價單建立失敗: {error_info}'})
+            self.log_print({'status': False, 'message': f"{action} 限價單建立失敗: {error_info}"})
             return None
 
     def place_initial_orders(self):
-        """根據當前價格建立買單和賣單"""
         current_price = self.get_current_price()
         print(f"📈 當前價格: {current_price}")
-        # 賣單（SELL）
         sell_price = current_price * (1 + self.price_increase_percentage)
         self.sell_order_id = self.place_order("SELL", sell_price)
-        # 買單（BUY）
         buy_price = current_price * (1 - self.price_decrease_percentage)
         self.buy_order_id = self.place_order("BUY", buy_price)
-        # 若買單與賣單皆失敗，則記錄錯誤訊息
         if self.sell_order_id is None and self.buy_order_id is None:
             error_msg = "初始掛單全部失敗，請檢查 API 金鑰或網路連線"
             self.error_message.append(error_msg)
@@ -295,7 +282,6 @@ class TradeWSManager:
         self.cancel_order(self.sell_order_id)
 
     def cancel_order(self, order_id):
-        """取消掛單"""
         if order_id is None:
             return
 
@@ -312,7 +298,6 @@ class TradeWSManager:
             print(error_msg)
 
     def stop(self):
-        """停止 WebSocket 並取消所有掛單"""
         print("⏳ 停止交易機器人中...")
         self.error_message = self.error_message or []
         self.cancel_all_orders()

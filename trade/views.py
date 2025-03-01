@@ -16,32 +16,30 @@ from .ws import TradeWSManager
 # 設定 logger
 logger = logging.getLogger(__name__)
 
-# 建立全域的 TradeWSManager 實例，維持交易狀態（注意：多用戶情境下可能需要額外處理隔離）
+# 建立全域的 TradeWSManager 實例
 trade_ws_manager = TradeWSManager()
 
-# 自訂 JSON 格式的登入驗證裝飾器
 def json_login_required(view_func):
     @wraps(view_func)
     def _wrapped_view(request, *args, **kwargs):
          if not request.user.is_authenticated:
-             return JsonResponse({'success': False, 'error': '未授權，請先登入'}, status=401)
+             return JsonResponse({'success': False, 'error': '未授權，請先登入'}, status=200)
          return view_func(request, *args, **kwargs)
     return _wrapped_view
 
 @csrf_exempt
 def balance(request):
-    # 如需驗證可直接呼叫 json_login_required，或自行檢查
     if not request.user.is_authenticated:
-        return JsonResponse({'success': False, 'error': '未授權，請先登入'}, status=401)
+        return JsonResponse({'success': False, 'error': '未授權，請先登入'}, status=200)
     try:
         balance_val = get_balance()
         return JsonResponse({'success': True, 'data': {'balance': balance_val}}, status=200)
     except ValueError as e:
         logger.error(f"balance ValueError: {e}")
-        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+        return JsonResponse({'success': False, 'error': str(e)}, status=200)
     except Exception as e:
         logger.exception("Internal Server Error in balance")
-        return JsonResponse({'success': False, 'error': 'Internal Server Error'}, status=500)
+        return JsonResponse({'success': False, 'error': 'Internal Server Error'}, status=200)
 
 @csrf_exempt
 def get_pairs(request):
@@ -53,10 +51,10 @@ def get_pairs(request):
             return JsonResponse({'success': True, 'data': data}, status=200)
         else:
             logger.error(f"get_pairs error: status_code {response.status_code}")
-            return JsonResponse({'success': False, 'error': '找不到 tickers'}, status=response.status_code)
+            return JsonResponse({'success': False, 'error': '找不到 tickers'}, status=200)
     except Exception as e:
         logger.exception("Internal Server Error in get_pairs")
-        return JsonResponse({'success': False, 'error': 'Internal Server Error'}, status=500)
+        return JsonResponse({'success': False, 'error': 'Internal Server Error'}, status=200)
 
 @csrf_exempt
 def login_view(request):
@@ -67,7 +65,7 @@ def login_view(request):
             else:
                 data = request.POST
         except json.JSONDecodeError:
-            return JsonResponse({"success": False, "error": "JSON 格式錯誤"}, status=400)
+            return JsonResponse({"success": False, "error": "JSON 格式錯誤"}, status=200)
         username = data.get("username")
         password = data.get("password")
         user = authenticate(request, username=username, password=password)
@@ -75,14 +73,11 @@ def login_view(request):
             login(request, user)
             return JsonResponse({"success": True, "data": {"message": "登入成功！", "redirect_url": "/"}}, status=200)
         else:
-            return JsonResponse({"success": False, "error": "登入失敗，請檢查您的帳號和密碼"}, status=400)
+            return JsonResponse({"success": False, "error": "登入失敗，請檢查您的帳號和密碼"}, status=200)
     else:
         return render(request, "login.html")
 
 def home(request):
-    """
-    首頁：若已登入則進入交易介面，否則轉跳到登入頁面
-    """
     if request.user.is_authenticated:
         return render(request, 'index.html')
     else:
@@ -95,7 +90,7 @@ def start_trade(request):
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
-            return JsonResponse({"success": False, "error": "JSON 格式錯誤"}, status=400)
+            return JsonResponse({"success": False, "error": "JSON 格式錯誤"}, status=200)
         pair = data.get('symbol')
         order_size = data.get('order_size')
         try:
@@ -103,20 +98,25 @@ def start_trade(request):
             down = float(data.get('price_down_percentage')) * 0.01
         except (TypeError, ValueError) as e:
             logger.error(f"start_trade percentage error: {e}")
-            return JsonResponse({"success": False, "error": "價格百分比格式錯誤"}, status=400)
+            return JsonResponse({"success": False, "error": "價格百分比格式錯誤"}, status=200)
         try:
-            resp = trade_ws_manager.start(pair=pair, order_size=order_size,
-                                          price_increase_percentage=up, price_decrease_percentage=down, user=request.user)
+            resp = trade_ws_manager.start(
+                pair=pair,
+                order_size=order_size,
+                price_increase_percentage=up,
+                price_decrease_percentage=down,
+                user=request.user
+            )
             if resp == 0:
                 return JsonResponse({'success': True, 'data': trade_ws_manager.get_manager_state()}, status=200)
             else:
                 error_detail = resp if isinstance(resp, str) else "\n".join(resp)
-                return JsonResponse({'success': False, 'error': error_detail}, status=400)
+                return JsonResponse({'success': False, 'error': error_detail}, status=200)
         except Exception as e:
             logger.exception("Internal Server Error in start_trade")
-            return JsonResponse({'success': False, 'error': 'Internal Server Error'}, status=500)
+            return JsonResponse({'success': False, 'error': 'Internal Server Error'}, status=200)
     else:
-        return JsonResponse({"success": False, "error": "只接受 POST 方法"}, status=405)
+        return JsonResponse({"success": False, "error": "只接受 POST 方法"}, status=200)
 
 @csrf_exempt
 @json_login_required
@@ -128,12 +128,12 @@ def stop_trade(request):
                 return JsonResponse({"success": True, "data": {"message": "交易機器人已停止"}}, status=200)
             else:
                 error_detail = resp if isinstance(resp, str) else "\n".join(resp)
-                return JsonResponse({"success": False, "error": error_detail}, status=400)
+                return JsonResponse({"success": False, "error": error_detail}, status=200)
         except Exception as e:
             logger.exception("Internal Server Error in stop_trade")
-            return JsonResponse({"success": False, "error": "Internal Server Error"}, status=500)
+            return JsonResponse({"success": False, "error": "Internal Server Error"}, status=200)
     else:
-        return JsonResponse({"success": False, "error": "只接受 POST 方法"}, status=405)
+        return JsonResponse({"success": False, "error": "只接受 POST 方法"}, status=200)
 
 @csrf_exempt
 @json_login_required
@@ -142,43 +142,45 @@ def update_trade(request):
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
-            return JsonResponse({"success": False, "error": "JSON 格式錯誤"}, status=400)
+            return JsonResponse({"success": False, "error": "JSON 格式錯誤"}, status=200)
         order_size = data.get('order_size')
         try:
             up = float(data.get('price_up_percentage')) * 0.01
             down = float(data.get('price_down_percentage')) * 0.01
         except (TypeError, ValueError) as e:
             logger.error(f"update_trade percentage error: {e}")
-            return JsonResponse({"success": False, "error": "價格百分比格式錯誤"}, status=400)
+            return JsonResponse({"success": False, "error": "價格百分比格式錯誤"}, status=200)
         try:
-            resp = trade_ws_manager.update(order_size=order_size,
-                                             price_increase_percentage=up, price_decrease_percentage=down)
+            resp = trade_ws_manager.update(
+                order_size=order_size,
+                price_increase_percentage=up,
+                price_decrease_percentage=down
+            )
             if resp == 0:
                 return JsonResponse({'success': True, 'data': trade_ws_manager.get_manager_state()}, status=200)
             else:
                 error_detail = resp if isinstance(resp, str) else "\n".join(resp)
-                return JsonResponse({'success': False, 'error': error_detail}, status=400)
+                return JsonResponse({'success': False, 'error': error_detail}, status=200)
         except Exception as e:
             logger.exception("Internal Server Error in update_trade")
-            return JsonResponse({"success": False, "error": "Internal Server Error"}, status=500)
+            return JsonResponse({"success": False, "error": "Internal Server Error"}, status=200)
     else:
-        return JsonResponse({"success": False, "error": "只接受 POST 方法"}, status=405)
+        return JsonResponse({"success": False, "error": "只接受 POST 方法"}, status=200)
 
 @csrf_exempt
 @json_login_required
 def check_trade(request):
-    # 使用 GET 方法查詢交易狀態
     if request.method == 'GET':
         try:
             if trade_ws_manager.is_running:
                 return JsonResponse({'success': True, 'data': trade_ws_manager.get_manager_state()}, status=200)
             else:
-                return JsonResponse({'success': False, 'error': '機器人未啟動/已停止'}, status=400)
+                return JsonResponse({'success': False, 'error': '機器人未啟動/已停止'}, status=200)
         except Exception as e:
             logger.exception("Internal Server Error in check_trade")
-            return JsonResponse({"success": False, "error": "Internal Server Error"}, status=500)
+            return JsonResponse({"success": False, "error": "Internal Server Error"}, status=200)
     else:
-        return JsonResponse({"success": False, "error": "只接受 GET 方法"}, status=405)
+        return JsonResponse({"success": False, "error": "只接受 GET 方法"}, status=200)
 
 @csrf_exempt
 @json_login_required
@@ -191,6 +193,4 @@ def get_order_history(request):
         return JsonResponse({'success': True, 'data': list(orders)}, status=200)
     except Exception as e:
         logger.exception("Internal Server Error in get_order_history")
-        return JsonResponse({"success": False, "error": "Internal Server Error"}, status=500)
-
-# 已移除 event_log 介面，不再提供事件日誌功能
+        return JsonResponse({"success": False, "error": "Internal Server Error"}, status=200)
