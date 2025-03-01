@@ -66,9 +66,15 @@
           <!-- 錯誤與成功訊息（移除 dismissible，保持顯示） -->
           <v-alert v-if="error" type="error" dense>
             [[ error ]]
+            <v-btn icon @click="error = ''">
+              <v-icon>mdi-close</v-icon>
+            </v-btn>
           </v-alert>
           <v-alert v-if="success" type="success" dense>
             [[ success ]]
+            <v-btn icon @click="success = ''">
+              <v-icon>mdi-close</v-icon>
+            </v-btn>
           </v-alert>
           
           <!-- 交易介面 -->
