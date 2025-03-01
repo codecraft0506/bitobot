@@ -254,7 +254,7 @@ class TradeWSManager:
         params = {
             "action": action,  # "BUY" 或 "SELL"
             "amount": str(self.order_size),
-            "price": str(round(price, 4)),
+            "price": str(round(price, 2)),
             "type": "LIMIT",
             "timestamp": int(time.time() * 1000)
         }
@@ -263,8 +263,8 @@ class TradeWSManager:
         response = requests.post(url, json=params, headers=headers)
         if response.status_code == 200:
             order_id = response.json().get("orderId")
-            print(f"✅ {action} 限價單建立成功: 價格 {str(round(price, 4))}, 訂單 ID: {order_id}")
-            self.log_print({'status': True, 'message': f'{action} 限價單建立成功: 價格 {str(round(price, 4))}, 訂單 ID: {order_id}'})
+            print(f"✅ {action} 限價單建立成功: 價格 {str(round(price, 2))}, 訂單 ID: {order_id}")
+            self.log_print({'status': True, 'message': f'{action} 限價單建立成功: 價格 {str(round(price, 2))}, 訂單 ID: {order_id}'})
             return order_id
         else:
             error_info = response.json()
