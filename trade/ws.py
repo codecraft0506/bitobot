@@ -161,6 +161,8 @@ class TradeWSManager:
         return 0  # 成功時返回 0
 
     def update(self, order_size, price_increase_percentage, price_decrease_percentage):
+        if not self.is_running:
+            return '機器人未運行'
         self.error_message = []  # 清空錯誤訊息列表
         self.cancel_all_orders()
         self.order_size = order_size
