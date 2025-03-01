@@ -318,11 +318,9 @@
             .then(response => {
               this.checkTrade();
               if (response.data.success) {
-                // 僅將成功訊息推送到 successMessages 陣列，不影響 errorMessages
                 this.successMessages.push('交易開始成功');
                 this.tradeStatus = response.data.data;
               } else {
-                // 如果交易失敗，將錯誤訊息推送到 errorMessages 陣列
                 this.errorMessages.push(response.data.error);
               }
             })
@@ -405,11 +403,30 @@
           const num = parseFloat(val);
           if (isNaN(num)) return val;
           return num.toLocaleString();
+        },
+        getOrderHistory() {
+          this.loading = true;
+          axios.get('/get_order_history/')
+            .then(response => {
+              if (response.data.success) {
+                this.orderHistory = response.data.data;
+                this.successMessages.push('成功獲取訂單歷史');
+                this.errorMessages = [];
+              } else {
+                this.errorMessages.push(response.data.error);
+                this.successMessages = [];
+              }
+            })
+            .catch(error => {
+              this.handleAxiosError(error, '獲取訂單歷史失敗');
+            })
+            .finally(() => { this.loading = false; });
         }
       },
       mounted() {
         this.getBalance();
         this.fetchPairs();
+        this.getOrderHistory();  // 確保頁面加載時取得訂單歷史
       }
     });
   </script>      

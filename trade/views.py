@@ -187,6 +187,7 @@ def get_order_history(request):
         orders = OrderHistory.objects.filter(user=user).values(
             "order_id", "timestamp", "symbol", "price", "order_type", "quantity"
         )
+        logger.info(f"Found orders: {orders}")
         return JsonResponse({'success': True, 'data': list(orders)}, status=200)
     except Exception as e:
         logger.exception("Internal Server Error in get_order_history")
