@@ -254,7 +254,7 @@ class TradeWSManager:
         params = {
             "action": action,  # "BUY" 或 "SELL"
             "amount": str(self.order_size),
-            "price": str(round(price, 8)),
+            "price": str(round(price, 2)),
             "type": "LIMIT",
             "timestamp": int(time.time() * 1000)
         }
