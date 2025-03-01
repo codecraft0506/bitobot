@@ -1,110 +1,74 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html>
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>登入 - BitoPro網格交易系統</title>
+  <title>登入頁面</title>
   <!-- Vuetify CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
-  <!-- Material Design Icons -->
-  <link href="https://fonts.googleapis.com/css?family=Material+Icons" rel="stylesheet">
-  <!-- Vue -->
-  <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
-  <!-- Vuetify JS -->
-  <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
-  <style>
-    body {
-      background: #e0f7fa;
-    }
-    .login-container {
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .login-card {
-      max-width: 400px;
-      width: 100%;
-      padding: 20px;
-    }
-  </style>
+  <link href="https://cdn.jsdelivr.net/npm/vuetify@2.6.0/dist/vuetify.min.css" rel="stylesheet">
+  <!-- Google Fonts: Roboto 與 Material Design Icons -->
+  <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@mdi/font@5.x/css/materialdesignicons.min.css" rel="stylesheet">
 </head>
 <body>
   <div id="app">
     <v-app>
-      <v-container class="login-container">
-        <v-card class="login-card" outlined>
-          <v-card-title class="headline justify-center">登入</v-card-title>
-          <v-card-text>
-            <v-form ref="form" v-model="valid">
-              <v-text-field
-                v-model="username"
-                :rules="[v => !!v || '請輸入帳號']"
-                label="帳號"
-                prepend-inner-icon="mdi-account"
-                required
-              ></v-text-field>
-              <v-text-field
-                v-model="password"
-                :rules="[v => !!v || '請輸入密碼']"
-                label="密碼"
-                type="password"
-                prepend-inner-icon="mdi-lock"
-                required
-              ></v-text-field>
-            </v-form>
-          </v-card-text>
-          <v-card-actions>
-            <v-spacer></v-spacer>
-            <v-btn color="primary" @click="login" :disabled="!valid">
-              登入
-            </v-btn>
-          </v-card-actions>
-        </v-card>
-      </v-container>
+      <v-main>
+        <v-container class="fill-height" fluid>
+          <v-row align="center" justify="center">
+            <v-col cols="12" sm="8" md="4">
+              <v-card>
+                <v-card-title class="headline">請登入</v-card-title>
+                <v-card-text>
+                  <v-form ref="form">
+                    <v-text-field label="使用者名稱" v-model="username" required></v-text-field>
+                    <v-text-field label="密碼" v-model="password" type="password" required></v-text-field>
+                  </v-form>
+                  <v-alert v-if="error" type="error" dense text>
+                    [[ error ]]
+                  </v-alert>
+                </v-card-text>
+                <v-card-actions>
+                  <v-spacer></v-spacer>
+                  <v-btn color="primary" @click="login">登入</v-btn>
+                </v-card-actions>
+              </v-card>
+            </v-col>
+          </v-row>
+        </v-container>
+      </v-main>
     </v-app>
   </div>
-  
+  <!-- Vue.js -->
+  <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
+  <!-- Vuetify JS -->
+  <script src="https://cdn.jsdelivr.net/npm/vuetify@2.6.0/dist/vuetify.js"></script>
+  <!-- Axios -->
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <script>
     new Vue({
       el: '#app',
+      // 設定自訂分隔符，避免與 Django 模板衝突
+      delimiters: ['[[', ']]'],
       vuetify: new Vuetify(),
-      data: () => ({
+      data: {
         username: '',
         password: '',
-        valid: false
-      }),
+        error: ''
+      },
       methods: {
-        async login() {
-          if (this.$refs.form.validate()) {
-            try {
-              const response = await fetch("/login/", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/x-www-form-urlencoded",
-                  "X-CSRFToken": this.getCsrfToken()
-                },
-                body: new URLSearchParams({
-                  username: this.username,
-                  password: this.password
-                })
-              });
-              const data = await response.json();
-              if (data.redirect_url) {
-                window.location.href = data.redirect_url;
-              } else {
-                alert(data.message || "帳號或密碼錯誤！");
-              }
-            } catch (error) {
-              console.error("登入錯誤", error);
-              alert("登入失敗，請重試");
+        login() {
+          axios.post('/login/', {
+            username: this.username,
+            password: this.password
+          }).then(response => {
+            if(response.data.success) {
+              window.location.href = response.data.data.redirect_url;
+            } else {
+              this.error = response.data.error;
             }
-          }
-        },
-        getCsrfToken() {
-          return document.cookie.split("; ")
-            .find(row => row.startsWith("csrftoken="))
-            ?.split("=")[1];
+          }).catch(error => {
+            this.error = '登入失敗，請稍後再試';
+          });
         }
       }
     });
