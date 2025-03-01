@@ -308,9 +308,10 @@
                 this.success = '交易開始成功';
                 this.error = '';
                 this.tradeStatus = response.data.data;
-                this.pollTradeStatus(0);
+                this.pollTradeStatus(0);  // 繼續輪詢交易狀態
+                this.checkTrade();  // 立刻更新交易狀態
               } else {
-                this.error = response.data.error;  // 顯示後端返回的錯誤訊息
+                this.error = response.data.error;
                 this.success = '';
               }
             })
@@ -318,7 +319,7 @@
               this.handleAxiosError(error, '啟動交易失敗');
             })
             .finally(() => { this.loading = false; });
-        },
+        },        
         pollTradeStatus(count) {
           if (count >= 5) return;
           setTimeout(() => {
@@ -345,8 +346,9 @@
                 this.success = response.data.data.message;
                 this.error = '';
                 this.tradeStatus = null;
+                this.checkTrade();  // 立刻更新交易狀態
               } else {
-                this.error = response.data.error;  // 顯示後端返回的錯誤訊息
+                this.error = response.data.error;
                 this.success = '';
               }
             })
@@ -363,8 +365,9 @@
                 this.success = '交易更新成功';
                 this.error = '';
                 this.tradeStatus = response.data.data;
+                this.checkTrade();  // 立刻更新交易狀態
               } else {
-                this.error = response.data.error;  // 顯示後端返回的錯誤訊息
+                this.error = response.data.error;
                 this.success = '';
               }
             })
@@ -382,7 +385,7 @@
                 this.success = '取得交易狀態成功';
                 this.error = '';
               } else {
-                this.error = response.data.error;  // 顯示後端返回的錯誤訊息
+                this.error = response.data.error;
                 this.tradeStatus = null;
                 this.success = '';
               }
