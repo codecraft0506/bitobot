@@ -63,20 +63,26 @@
       <!-- 主要內容區 -->
       <v-main>
         <v-container fluid>
-          <!-- 錯誤與成功訊息（移除 dismissible，保持顯示） -->
-          <v-alert v-if="error" type="error" dense>
-            [[ error ]]
-            <v-btn icon @click="error = ''">
-              <v-icon>mdi-close</v-icon>
-            </v-btn>
-          </v-alert>
-          <v-alert v-if="success" type="success" dense>
-            [[ success ]]
-            <v-btn icon @click="success = ''">
-              <v-icon>mdi-close</v-icon>
-            </v-btn>
-          </v-alert>
-          
+          <!-- 顯示所有錯誤訊息 -->
+          <div v-for="(msg, index) in errorMessages" :key="'error-' + index">
+            <v-alert type="error" dense>
+              [[ msg ]]
+              <v-btn icon @click="errorMessages.splice(index, 1)">
+                <v-icon>mdi-close</v-icon>
+              </v-btn>
+            </v-alert>
+          </div>
+
+          <!-- 顯示所有成功訊息 -->
+          <div v-for="(msg, index) in successMessages" :key="'success-' + index">
+            <v-alert type="success" dense>
+              [[ msg ]]
+              <v-btn icon @click="successMessages.splice(index, 1)">
+                <v-icon>mdi-close</v-icon>
+              </v-btn>
+            </v-alert>
+          </div>
+
           <!-- 交易介面 -->
           <div v-if="currentTab === 'trade'">
             <v-card class="pa-4 mb-4">
@@ -235,8 +241,8 @@
         drawer: false,
         currentTab: 'trade',
         loading: false,
-        error: '',
-        success: '',
+        errorMessages: [],  // 錯誤訊息陣列
+        successMessages: [],  // 成功訊息陣列
         trade: {
           symbol: '',
           order_size: 1,
@@ -272,11 +278,11 @@
               if (response.data.success) {
                 let balanceObj = response.data.data.balance;
                 this.balanceData = balanceObj.data || []; 
-                this.success = '查詢餘額成功';
-                this.error = '';
+                this.successMessages.push('查詢餘額成功');
+                this.errorMessages = [];
               } else {
-                this.error = response.data.error;
-                this.success = '';
+                this.errorMessages.push(response.data.error);
+                this.successMessages = [];
               }
             })
             .catch(error => {
@@ -294,11 +300,11 @@
                 if (Array.isArray(this.pairs) && this.pairs.length > 0) {
                   this.trade.symbol = this.pairs[0].pair;
                 }
-                this.success = '取得交易對成功';
-                this.error = '';
+                this.successMessages.push('取得交易對成功');
+                this.errorMessages = [];
               } else {
-                this.error = response.data.error;
-                this.success = '';
+                this.errorMessages.push(response.data.error);
+                this.successMessages = [];
               }
             })
             .catch(error => {
@@ -310,14 +316,14 @@
           this.loading = true;
           axios.post('/start_trade/', this.trade)
             .then(response => {
-              this.checkTrade();  // 確保交易狀態會立即更新
+              this.checkTrade();
               if (response.data.success) {
-                this.success = '交易開始成功';
-                this.error = '';
+                // 僅將成功訊息推送到 successMessages 陣列，不影響 errorMessages
+                this.successMessages.push('交易開始成功');
                 this.tradeStatus = response.data.data;
               } else {
-                this.error = response.data.error;
-                this.success = '';
+                // 如果交易失敗，將錯誤訊息推送到 errorMessages 陣列
+                this.errorMessages.push(response.data.error);
               }
             })
             .catch(error => {
@@ -331,12 +337,10 @@
             .then(response => {
               if (response.data.success) {
                 this.tradeStatus = response.data.data;
-                this.success = '取得交易狀態成功';
-                this.error = '';
+                this.successMessages.push('取得交易狀態成功');
               } else {
-                this.error = response.data.error;
+                this.errorMessages.push(response.data.error);
                 this.tradeStatus = null;
-                this.success = '';
               }
             })
             .catch(error => {
@@ -348,14 +352,14 @@
           this.loading = true;
           axios.post('/stop_trade/')
             .then(response => {
-              this.checkTrade();  // 確保交易狀態會立即更新
+              this.checkTrade();
               if (response.data.success) {
-                this.success = response.data.data.message;
-                this.error = '';
+                this.successMessages.push(response.data.data.message);
+                this.errorMessages = [];
                 this.tradeStatus = null;
               } else {
-                this.error = response.data.error;
-                this.success = '';
+                this.errorMessages.push(response.data.error);
+                this.successMessages = [];
               }
             })
             .catch(error => {
@@ -367,14 +371,14 @@
           this.loading = true;
           axios.post('/update_trade/', this.trade)
             .then(response => {
-              this.checkTrade();  // 確保交易狀態會立即更新
+              this.checkTrade();
               if (response.data.success) {
-                this.success = '交易更新成功';
-                this.error = '';
+                this.successMessages.push('交易更新成功');
+                this.errorMessages = [];
                 this.tradeStatus = response.data.data;
               } else {
-                this.error = response.data.error;
-                this.success = '';
+                this.errorMessages.push(response.data.error);
+                this.successMessages = [];
               }
             })
             .catch(error => {
@@ -383,16 +387,19 @@
             .finally(() => { this.loading = false; });
         },
         handleAxiosError(error, fallbackMessage) {
+          let message = '';
           if (error.response && error.response.data && error.response.data.error) {
-            this.error = error.response.data.error;
+            message = error.response.data.error;
           } else if (error.response) {
-            this.error = `錯誤碼 ${error.response.status}：${error.response.statusText || fallbackMessage}`;
+            message = `錯誤碼 ${error.response.status}：${error.response.statusText || fallbackMessage}`;
           } else if (error.request) {
-            this.error = '無法連線到伺服器，請檢查網路或伺服器狀態';
+            message = '無法連線到伺服器，請檢查網路或伺服器狀態';
           } else {
-            this.error = error.message || fallbackMessage;
+            message = error.message || fallbackMessage;
           }
-          this.success = '';
+
+          this.errorMessages.push(message);
+          this.successMessages = [];
         },
         formatNumber(val) {
           const num = parseFloat(val);
