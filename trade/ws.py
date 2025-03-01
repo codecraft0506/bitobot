@@ -155,6 +155,8 @@ class TradeWSManager:
             self.error_message.append(error_msg)
             print(f"❌ {error_msg}")
             self.stop()
+        self.wait_start = True
+        
 
     def start(self, pair, order_size, price_increase_percentage, price_decrease_percentage, user):
         if self.is_running:
@@ -166,6 +168,7 @@ class TradeWSManager:
         self.price_increase_percentage = price_increase_percentage
         self.price_decrease_percentage = price_decrease_percentage
         self.start_time = datetime.now().isoformat(timespec='seconds') + "Z"
+        self.wait_start = False
         self.user = user
 
         print("⏳ 嘗試連線中...")
@@ -196,6 +199,9 @@ class TradeWSManager:
             print("❌ WS 連線超時")
             self.stop()
             return "\n".join(self.error_message)
+
+        while (not self.wait_start):
+            time.sleep(1)
 
         # 如果有錯誤訊息，返回它們
         if self.error_message:
