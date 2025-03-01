@@ -47,7 +47,7 @@ class TradeWSManager:
             self.buy_order_id = None   # 買單 ID
             self.user = None 
             self.log_messages = []
-            # 新增：用來判斷 WS 是否連線成功
+            # 用來判斷 WS 是否連線成功
             self.connected_event = threading.Event()
             self._initialized = True
             print('WSM 初始化成功')
@@ -151,7 +151,7 @@ class TradeWSManager:
         print("✅ WebSocket 連線成功，開始監聽訂單狀態")
         self.connected_event.set()  # 標記 WS 連線成功
         self.place_initial_orders()
-        # 檢查初始掛單狀態：若買賣單皆失敗，回傳錯誤訊息並停止機器人
+        # 若初始掛單全部失敗，記錄錯誤訊息並停止機器人
         if not self.sell_order_id and not self.buy_order_id:
             error_msg = "初始掛單全部失敗，請檢查 API 金鑰或網路連線"
             self.error_message.append(error_msg)
@@ -186,7 +186,7 @@ class TradeWSManager:
             on_error=self.on_error,
             on_close=self.on_close
         )
-        # 在 run_forever 時傳入 sslopt 參數以關閉憑證驗證
+        # 在 run_forever 時傳入 sslopt 參數以關閉憑證驗證（僅用於開發環境）
         self.thread = threading.Thread(
             target=lambda: self.ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE}),
             daemon=True
@@ -201,7 +201,7 @@ class TradeWSManager:
             self.stop()
             return "\n".join(self.error_message)
 
-        # 若在連線後已經有錯誤訊息，則直接回傳
+        # 若在連線後已有錯誤訊息，則直接回傳
         if self.error_message:
             self.stop()
             return "\n".join(self.error_message)
@@ -268,8 +268,9 @@ class TradeWSManager:
             return order_id
         else:
             error_info = response.json()
-            print(f"❌ 下單失敗: {error_info}")
-            self.error_message.append(f"下單失敗: {error_info}")
+            error_msg = f"❌ 下單失敗: {error_info}"
+            print(error_msg)
+            self.error_message.append(error_msg)
             self.log_print({'status': False, 'message': f'{action} 限價單建立失敗: {error_info}'})
             return None
 
@@ -283,6 +284,11 @@ class TradeWSManager:
         # 買單（BUY）
         buy_price = current_price * (1 - self.price_decrease_percentage)
         self.buy_order_id = self.place_order("BUY", buy_price)
+        # 若買單與賣單皆失敗，則記錄錯誤訊息
+        if self.sell_order_id is None and self.buy_order_id is None:
+            error_msg = "初始掛單全部失敗，請檢查 API 金鑰或網路連線"
+            self.error_message.append(error_msg)
+            print(f"❌ {error_msg}")
 
     def cancel_all_orders(self):
         self.cancel_order(self.buy_order_id)
@@ -301,18 +307,22 @@ class TradeWSManager:
             print(f"✅ 訂單 {order_id} 取消成功")
         else:
             error_info = response.json()
-            self.error_message.append(f"訂單 {order_id} 取消失敗: {error_info}")
-            print(f"❌ 訂單取消失敗: {error_info}")
+            error_msg = f"❌ 訂單 {order_id} 取消失敗: {error_info}"
+            self.error_message.append(error_msg)
+            print(error_msg)
 
     def stop(self):
         """停止 WebSocket 並取消所有掛單"""
         print("⏳ 停止交易機器人中...")
-        self.error_message = []
+        self.error_message = self.error_message or []
         self.cancel_all_orders()
         if self.ws:
             self.ws.close()
         if self.thread:
-            self.thread.join(timeout=5)
+            try:
+                self.thread.join(timeout=5)
+            except RuntimeError as e:
+                print(f"❌ WebSocket 錯誤: {e}")
         self.is_running = False
         print("🔴 機器人已停止")
         return "\n".join(self.error_message) if self.error_message else 0
