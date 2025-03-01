@@ -177,16 +177,20 @@ class TradeWSManager:
             'nonce': int(time.time() * 1000)
         }
 
+        # 建立 WebSocketApp 時不直接傳入 sslopt 參數
         self.ws = websocket.WebSocketApp(
             self.ws_url,
             header=self.get_headers(params),
             on_open=self.on_open,
             on_message=self.on_message,
             on_error=self.on_error,
-            on_close=self.on_close,
-            sslopt={"cert_reqs": ssl.CERT_NONE}
+            on_close=self.on_close
         )
-        self.thread = threading.Thread(target=self.ws.run_forever, daemon=True)
+        # 在 run_forever 時傳入 sslopt 參數以關閉憑證驗證
+        self.thread = threading.Thread(
+            target=lambda: self.ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE}),
+            daemon=True
+        )
         self.is_running = True
         self.thread.start()
         
