@@ -325,6 +325,7 @@
             .then(response => {
               if (response.data.success) {
                 this.tradeStatus = response.data.data;
+                console.log(this.tradeStatus);
                 this.success = '取得交易狀態成功';
                 this.error = '';
               } else {
