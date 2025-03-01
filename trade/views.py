@@ -113,7 +113,7 @@ def start_trade(request):
                 return JsonResponse({'success': False, 'error': resp}, status=200)
         except Exception as e:
             logger.exception("Internal Server Error in start_trade")
-            return JsonResponse({'success': False, 'error': 'Internal Server Error'}, status=200)
+            return JsonResponse({'success': False, 'error': str(e)}, status=200)
     else:
         return JsonResponse({"success": False, "error": "只接受 POST 方法"}, status=200)
 
