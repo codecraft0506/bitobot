@@ -17,20 +17,20 @@ EMAIL = os.getenv('EMAIL')
 # API 基礎網址
 BASE_URL = "https://api.bitopro.com/v3"
 
-
 def get_headers(params):
     """產生 BitoPro API 驗證標頭"""
     payload = base64.urlsafe_b64encode(json.dumps(params).encode('utf-8')).decode('utf-8')
-    signature = hmac.new(bytes(API_SECRET, 'utf-8'),
-                         bytes(payload, 'utf-8'),
-                         hashlib.sha384).hexdigest()
+    signature = hmac.new(
+        bytes(API_SECRET, 'utf-8'),
+        bytes(payload, 'utf-8'),
+        hashlib.sha384
+    ).hexdigest()
     headers = {
         "X-BITOPRO-APIKEY": API_KEY,
         "X-BITOPRO-PAYLOAD": payload,
         "X-BITOPRO-SIGNATURE": signature,
     }
     return headers
-
 
 def get_balance():
     """查詢帳戶餘額"""

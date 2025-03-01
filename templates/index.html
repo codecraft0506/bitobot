@@ -1,305 +1,439 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html>
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BitoPro網格交易系統</title>
+  <title>交易介面</title>
   <!-- Vuetify CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
-  <!-- Material Design Icons -->
-  <link href="https://fonts.googleapis.com/css?family=Material+Icons" rel="stylesheet">
-  <!-- Vue -->
-  <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
-  <!-- Vuetify JS -->
-  <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/vuetify@2.6.0/dist/vuetify.min.css" rel="stylesheet">
+  <!-- Google Fonts: Roboto 與 Material Design Icons -->
+  <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@mdi/font@5.x/css/materialdesignicons.min.css" rel="stylesheet">
   <style>
-    body {
-      background: #f5f5f5;
-    }
-    .card-title {
-      font-weight: bold;
-      font-size: 20px;
-    }
+    body { font-family: 'Roboto', sans-serif; }
+    .status-table td { padding: 8px 16px; }
   </style>
 </head>
 <body>
   <div id="app">
     <v-app>
-      <!-- App Bar -->
-      <v-app-bar app color="primary" dark>
-        <v-toolbar-title>BitoPro網格交易系統</v-toolbar-title>
+      <!-- 全螢幕 Loading Overlay -->
+      <v-overlay :value="loading" absolute>
+        <v-progress-circular indeterminate size="64"></v-progress-circular>
+      </v-overlay>
+      
+      <!-- 左側選單：依據手機版調整 temporary 模式 -->
+      <v-navigation-drawer v-model="drawer" app clipped :temporary="$vuetify.breakpoint.smAndDown">
+        <v-list dense>
+          <!-- 切換分頁：交易 -->
+          <v-list-item link @click="currentTab = 'trade'">
+            <v-list-item-icon>
+              <v-icon>mdi-swap-horizontal</v-icon>
+            </v-list-item-icon>
+            <v-list-item-content>
+              <v-list-item-title>交易</v-list-item-title>
+            </v-list-item-content>
+          </v-list-item>
+          <!-- 切換分頁：訂單歷史 -->
+          <v-list-item link @click="currentTab = 'history'">
+            <v-list-item-icon>
+              <v-icon>mdi-history</v-icon>
+            </v-list-item-icon>
+            <v-list-item-content>
+              <v-list-item-title>訂單歷史</v-list-item-title>
+            </v-list-item-content>
+          </v-list-item>
+          <!-- 切換分頁：餘額 -->
+          <v-list-item link @click="currentTab = 'balance'">
+            <v-list-item-icon>
+              <v-icon>mdi-currency-usd</v-icon>
+            </v-list-item-icon>
+            <v-list-item-content>
+              <v-list-item-title>餘額</v-list-item-title>
+            </v-list-item-content>
+          </v-list-item>
+        </v-list>
+      </v-navigation-drawer>
+      
+      <!-- 上方導覽列：增加手機版導覽圖示 -->
+      <v-app-bar app clipped-left>
+        <v-app-bar-nav-icon @click="drawer = !drawer"></v-app-bar-nav-icon>
+        <v-toolbar-title>交易機器人介面</v-toolbar-title>
       </v-app-bar>
       
-      <!-- 主內容 -->
+      <!-- 主要內容區 -->
       <v-main>
-        <v-container fluid class="mt-5">
-          <v-row>
-            <!-- 交易操作區 -->
-            <v-col cols="12" md="6">
-              <v-card elevation="2" class="pa-4">
-                <v-card-title class="card-title">交易操作</v-card-title>
-                <v-divider class="mb-4"></v-divider>
-                <v-card-text>
-                  <!-- 錯誤訊息提示 -->
-                  <v-alert v-if="errorMessage" type="error" dismissible @input="errorMessage = ''">
-                    [[ errorMessage ]]
-                  </v-alert>
-                  <v-form>
-                    <v-select
-                      :items="symbols"
-                      label="選擇幣種"
-                      v-model="form.symbol"
-                      :disabled="trading"
-                      required
-                    ></v-select>
-                    <v-text-field
-                      label="下單數量 (最低 0.0001)"
-                      v-model.number="form.order_size"
-                      type="number"
-                      required
-                    ></v-text-field>
-                    <v-text-field
-                      label="漲幅百分比 (%)"
-                      v-model.number="form.price_up_percentage"
-                      type="number"
-                      required
-                    ></v-text-field>
-                    <v-text-field
-                      label="跌幅百分比 (%)"
-                      v-model.number="form.price_down_percentage"
-                      type="number"
-                      required
-                    ></v-text-field>
-                  </v-form>
-                  <v-divider class="my-4"></v-divider>
-                  <v-row>
-                    <v-col cols="12" sm="4">
-                      <v-btn
-                        color="success"
-                        block
-                        @click="startTrading"
-                        :disabled="trading"
-                      >開始交易</v-btn>
-                    </v-col>
-                    <v-col cols="12" sm="4">
-                      <v-btn
-                        color="warning"
-                        block
-                        @click="updateParams"
-                        :disabled="!trading"
-                      >更新參數</v-btn>
-                    </v-col>
-                    <v-col cols="12" sm="4">
-                      <v-btn
-                        color="error"
-                        block
-                        @click="stopTrading"
-                        :disabled="!trading"
-                      >停止交易</v-btn>
-                    </v-col>
-                  </v-row>
-                </v-card-text>
-              </v-card>
-            </v-col>
+        <v-container fluid>
+          <!-- 錯誤與成功訊息（移除 dismissible，保持顯示） -->
+          <v-alert v-if="error" type="error" dense>
+            [[ error ]]
+          </v-alert>
+          <v-alert v-if="success" type="success" dense>
+            [[ success ]]
+          </v-alert>
+          
+          <!-- 交易介面 -->
+          <div v-if="currentTab === 'trade'">
+            <v-card class="pa-4 mb-4">
+              <v-card-title>開始交易</v-card-title>
+              <v-card-text>
+                <v-form ref="tradeForm">
+                  <!-- 交易對下拉選單 -->
+                  <v-select 
+                    label="交易對 (pair)" 
+                    v-model="trade.symbol" 
+                    :items="pairs" 
+                    item-text="pair"
+                    item-value="pair"
+                    required
+                  ></v-select>
+                  <!-- 其他參數預設值 -->
+                  <v-text-field
+                    label="訂單數量"
+                    v-model="trade.order_size"
+                    required
+                    type="number"
+                  ></v-text-field>
+                  <v-text-field
+                    label="價格上升百分比"
+                    v-model="trade.price_up_percentage"
+                    required
+                    type="number"
+                  ></v-text-field>
+                  <v-text-field
+                    label="價格下降百分比"
+                    v-model="trade.price_down_percentage"
+                    required
+                    type="number"
+                  ></v-text-field>
+                </v-form>
+              </v-card-text>
+              <v-card-actions>
+                <v-btn color="primary" @click="startTrade">開始交易</v-btn>
+                <v-btn color="error" @click="stopTrade">停止交易</v-btn>
+                <v-btn color="secondary" @click="updateTrade">更新交易</v-btn>
+              </v-card-actions>
+            </v-card>
             
-            <!-- 交易狀態區 -->
-            <v-col cols="12" md="6">
-              <v-card elevation="2" class="pa-4">
-                <v-card-title class="card-title">交易狀態</v-card-title>
-                <v-divider class="mb-4"></v-divider>
-                <v-card-text>
-                  <v-alert type="info" dense outlined v-if="trading && status && Object.keys(status).length">
-                    <div><strong>幣種：</strong>[[ status.pair ]]</div>
-                    <div><strong>下單數量：</strong>[[ status.order_size ]]</div>
-                    <div><strong>漲幅百分比：</strong>[[ status.price_up_percentage ]]%</div>
-                    <div><strong>跌幅百分比：</strong>[[ status.price_down_percentage ]]%</div>
-                    <div><strong>開始時間：</strong>[[ status.start_time ]]</div>
-                  </v-alert>
-                  <v-alert type="warning" dense outlined v-else>
-                    目前未在交易
-                  </v-alert>
-                </v-card-text>
-              </v-card>
-            </v-col>
-          </v-row>
+            <!-- 交易狀態顯示 -->
+            <v-card class="pa-4">
+              <v-card-title>交易狀態</v-card-title>
+              <v-card-text>
+                <v-simple-table v-if="tradeStatus">
+                  <template v-slot:default>
+                    <table class="status-table">
+                      <tbody>
+                        <tr>
+                          <td><strong>交易對</strong></td>
+                          <td>[[ tradeStatus.pair ]]</td>
+                        </tr>
+                        <tr>
+                          <td><strong>訂單數量</strong></td>
+                          <td>[[ tradeStatus.order_size ]]</td>
+                        </tr>
+                        <tr>
+                          <td><strong>價格上升百分比</strong></td>
+                          <td>[[ tradeStatus.price_up_percentage ]]%</td>
+                        </tr>
+                        <tr>
+                          <td><strong>價格下降百分比</strong></td>
+                          <td>[[ tradeStatus.price_down_percentage ]]%</td>
+                        </tr>
+                        <tr>
+                          <td><strong>啟動時間</strong></td>
+                          <td>[[ tradeStatus.start_time ]]</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </template>
+                </v-simple-table>
+                <div v-else>
+                  <p>尚未啟動交易機器人</p>
+                </div>
+                <v-btn color="info" class="mt-4" @click="checkTrade">手動檢查狀態</v-btn>
+              </v-card-text>
+            </v-card>
+          </div>
           
-          <!-- 帳戶餘額區 -->
-          <v-row class="mt-4">
-            <v-col cols="12">
-              <v-card elevation="2" class="pa-4">
-                <v-card-title class="card-title">帳戶餘額</v-card-title>
-                <v-divider class="mb-4"></v-divider>
-                <v-card-text>
-                  <div v-if="balance && balance.length > 0">
-                    <div v-for="(item, index) in balance" :key="index">
-                      <strong>[[ item.currency.toUpperCase() ]]:</strong> [[ item.available ]]
-                    </div>
-                  </div>
-                  <div v-else>
-                    <v-progress-circular indeterminate color="primary"></v-progress-circular>
-                  </div>
-                </v-card-text>
-              </v-card>
-            </v-col>
-          </v-row>
+          <!-- 訂單歷史 -->
+          <div v-if="currentTab === 'history'">
+            <v-card class="pa-4">
+              <v-card-title>訂單歷史</v-card-title>
+              <v-card-text>
+                <v-data-table
+                  :headers="historyHeaders"
+                  :items="orderHistory"
+                  class="elevation-1"
+                >
+                  <template v-slot:item.timestamp="{ item }">
+                    [[ new Date(item.timestamp).toLocaleString() ]]
+                  </template>
+                </v-data-table>
+              </v-card-text>
+            </v-card>
+          </div>
           
-          <!-- 刷新狀態按鈕 -->
-          <v-row class="mt-4">
-            <v-col cols="12" class="text-center">
-              <v-btn color="primary" @click="fetchStatus">刷新狀態</v-btn>
-            </v-col>
-          </v-row>
+          <!-- 餘額查詢 -->
+          <div v-if="currentTab === 'balance'">
+            <v-card class="pa-4">
+              <v-card-title>
+                <span>餘額查詢</span>
+                <v-spacer></v-spacer>
+                <v-btn color="primary" @click="getBalance">重新查詢</v-btn>
+              </v-card-title>
+              <v-card-text>
+                <v-data-table
+                  :headers="balanceHeaders"
+                  :items="balanceData"
+                  class="elevation-1"
+                  dense
+                >
+                  <template v-slot:item.amount="{ item }">
+                    [[ formatNumber(item.amount) ]]
+                  </template>
+                  <template v-slot:item.available="{ item }">
+                    [[ formatNumber(item.available) ]]
+                  </template>
+                  <template v-slot:item.stake="{ item }">
+                    [[ formatNumber(item.stake) ]]
+                  </template>
+                  <template v-slot:item.enable="{ item }">
+                    [[ item.enable ? '是' : '否' ]]
+                  </template>
+                  <template v-slot:item.tradable="{ item }">
+                    [[ item.tradable ? '可交易' : '不可交易' ]]
+                  </template>
+                </v-data-table>
+                <div v-if="!balanceData || balanceData.length === 0" class="mt-3">
+                  <p>目前沒有餘額資料</p>
+                </div>
+              </v-card-text>
+            </v-card>
+          </div>
         </v-container>
       </v-main>
-      
-      <!-- Footer -->
-      <v-footer app padless color="primary" dark>
-        <v-col class="text-center white--text py-3">
-          © 2025 BitoPro 網格交易系統
-        </v-col>
-      </v-footer>
     </v-app>
   </div>
   
+  <!-- Vue.js -->
+  <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
+  <!-- Vuetify JS -->
+  <script src="https://cdn.jsdelivr.net/npm/vuetify@2.6.0/dist/vuetify.js"></script>
+  <!-- Axios -->
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <script>
     new Vue({
       el: '#app',
-      vuetify: new Vuetify(),
       delimiters: ['[[', ']]'],
-      data: () => ({
-        form: {
+      vuetify: new Vuetify(),
+      data: {
+        drawer: false,
+        currentTab: 'trade',
+        loading: false,
+        error: '',
+        success: '',
+        trade: {
           symbol: '',
-          order_size: 0.01,
+          order_size: 1,
           price_up_percentage: 1,
-          price_down_percentage: 2
+          price_down_percentage: 1
         },
-        trading: false,
-        status: {},
-        symbols: [],
-        balance: null,
-        errorMessage: ''
-      }),
+        tradeStatus: null,
+        balanceData: [],
+        balanceHeaders: [
+          { text: '幣別', value: 'currency' },
+          { text: '總額', value: 'amount' },
+          { text: '可用', value: 'available' },
+          { text: '質押數量', value: 'stake' },
+          { text: '是否啟用', value: 'enable' },
+          { text: '是否可交易', value: 'tradable' }
+        ],
+        orderHistory: [],
+        pairs: [],
+        historyHeaders: [
+          { text: '訂單編號', value: 'order_id' },
+          { text: '時間', value: 'timestamp' },
+          { text: '交易對', value: 'symbol' },
+          { text: '價格', value: 'price' },
+          { text: '類型', value: 'order_type' },
+          { text: '數量', value: 'quantity' }
+        ]
+      },
       methods: {
-        async fetchSymbols() {
-          try {
-            const response = await fetch('/pairs/');
-            const data = await response.json();
-            // 假設 data 結構中有 data 陣列
-            this.symbols = data.data.map(item => item.pair);
-            if (!this.form.symbol && this.symbols.length > 0) {
-              this.form.symbol = this.symbols[0];
-            }
-          } catch (error) {
-            console.error('載入交易對失敗', error);
-          }
+        getBalance() {
+          this.loading = true;
+          axios.get('/balance/')
+            .then(response => {
+              if (response.data.success) {
+                let balanceObj = response.data.data.balance;
+                this.balanceData = balanceObj.data || []; 
+                this.success = '查詢餘額成功';
+                this.error = '';
+              } else {
+                this.error = response.data.error;
+                this.success = '';
+              }
+            })
+            .catch(error => {
+              this.handleAxiosError(error, '查詢餘額失敗');
+            })
+            .finally(() => { this.loading = false; });
         },
-        async fetchBalance() {
-          try {
-            const response = await fetch('/balance/');
-            const data = await response.json();
-            this.balance = data.data;
-          } catch (error) {
-            console.error('載入餘額失敗', error);
-          }
+        fetchPairs() {
+          this.loading = true;
+          axios.get('/get_pairs/')
+            .then(response => {
+              if(response.data.success) {
+                const arr = response.data.data.data || response.data.data;
+                this.pairs = arr;
+                if (Array.isArray(this.pairs) && this.pairs.length > 0) {
+                  this.trade.symbol = this.pairs[0].pair;
+                }
+                this.success = '取得交易對成功';
+                this.error = '';
+              } else {
+                this.error = response.data.error;
+                this.success = '';
+              }
+            })
+            .catch(error => {
+              this.handleAxiosError(error, '取得交易對失敗');
+            })
+            .finally(() => { this.loading = false; });
         },
-        async fetchStatus() {
-          try {
-            const response = await fetch('/check_trade', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({})
-            });
-            const data = await response.json();
-            if (data && data.pair) {
-              this.trading = true;
-              this.status = data;
-            } else {
-              this.trading = false;
-              this.status = {};
-            }
-          } catch (error) {
-            console.error('載入交易狀態失敗', error);
-          }
+        startTrade() {
+          this.loading = true;
+          axios.post('/start_trade/', this.trade)
+            .then(response => {
+              if(response.data.success) {
+                this.success = '交易開始成功';
+                this.error = '';
+                this.tradeStatus = response.data.data;
+                this.pollTradeStatus(0);
+              } else {
+                this.error = response.data.error;
+                this.success = '';
+              }
+            })
+            .catch(error => {
+              this.handleAxiosError(error, '啟動交易失敗');
+            })
+            .finally(() => { this.loading = false; });
         },
-        async startTrading() {
-          try {
-            const response = await fetch('/start_trade', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify(this.form)
-            });
-            const data = await response.json();
-            if (data.status === '交易機器人成功啟動') {
-              this.trading = true;
-              this.status = data.data;
-              this.errorMessage = '';
-            } else {
-              this.errorMessage = '啟動失敗：' + (data.message || '未知錯誤');
-            }
-          } catch (error) {
-            console.error('啟動交易失敗', error);
-            this.errorMessage = '啟動交易失敗，請重試';
-          }
-        },
-        async updateParams() {
-          if (!this.trading) return;
-          try {
-            const response = await fetch('/update_trade', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                order_size: this.form.order_size,
-                price_up_percentage: this.form.price_up_percentage,
-                price_down_percentage: this.form.price_down_percentage
+        pollTradeStatus(count) {
+          if(count >= 5) return;
+          setTimeout(() => {
+            axios.get('/check_trade/')
+              .then(res => {
+                if(res.data.success) {
+                  this.tradeStatus = res.data.data;
+                  this.pollTradeStatus(count + 1);
+                } else {
+                  this.error = '交易機器人啟動失敗：' + res.data.error;
+                  this.tradeStatus = null;
+                }
               })
-            });
-            const data = await response.json();
-            if (data.status === '更新成功') {
-              this.status = data.data;
-              alert('更新成功');
-            } else {
-              alert('更新失敗：' + (data.message || '未知錯誤'));
-            }
-          } catch (error) {
-            console.error('更新參數失敗', error);
-            alert('更新參數失敗，請重試');
-          }
+              .catch(error => {
+                this.handleAxiosError(error, '檢查交易狀態失敗');
+              });
+          }, 2000);
         },
-        async stopTrading() {
-          try {
-            const response = await fetch('/stop_trade', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({})
-            });
-            const data = await response.json();
-            if (data.status === '交易機器人已停止') {
-              this.trading = false;
-              this.status = {};
-              alert('交易機器人已停止');
-            } else {
-              alert('停止失敗：' + (data.message || '未知錯誤'));
-            }
-          } catch (error) {
-            console.error('停止交易失敗', error);
-            alert('停止交易失敗，請重試');
+        stopTrade() {
+          this.loading = true;
+          axios.post('/stop_trade/')
+            .then(response => {
+              if(response.data.success) {
+                this.success = response.data.data.message;
+                this.error = '';
+                this.tradeStatus = null;
+              } else {
+                this.error = response.data.error;
+                this.success = '';
+              }
+            })
+            .catch(error => {
+              this.handleAxiosError(error, '停止交易失敗');
+            })
+            .finally(() => { this.loading = false; });
+        },
+        updateTrade() {
+          this.loading = true;
+          axios.post('/update_trade/', this.trade)
+            .then(response => {
+              if(response.data.success) {
+                this.success = '交易更新成功';
+                this.error = '';
+                this.tradeStatus = response.data.data;
+              } else {
+                this.error = response.data.error;
+                this.success = '';
+              }
+            })
+            .catch(error => {
+              this.handleAxiosError(error, '更新交易失敗');
+            })
+            .finally(() => { this.loading = false; });
+        },
+        checkTrade() {
+          this.loading = true;
+          axios.get('/check_trade/')
+            .then(response => {
+              if(response.data.success) {
+                this.tradeStatus = response.data.data;
+                this.success = '取得交易狀態成功';
+                this.error = '';
+              } else {
+                this.error = response.data.error;
+                this.tradeStatus = null;
+                this.success = '';
+              }
+            })
+            .catch(error => {
+              this.handleAxiosError(error, '檢查交易狀態失敗');
+            })
+            .finally(() => { this.loading = false; });
+        },
+        fetchOrderHistory() {
+          this.loading = true;
+          axios.get('/get_order_history/')
+            .then(response => {
+              if(response.data.success) {
+                this.orderHistory = response.data.data;
+                this.success = '取得訂單歷史成功';
+                this.error = '';
+              } else {
+                this.error = response.data.error;
+                this.success = '';
+              }
+            })
+            .catch(error => {
+              this.handleAxiosError(error, '取得訂單歷史失敗');
+            })
+            .finally(() => { this.loading = false; });
+        },
+        handleAxiosError(error, fallbackMessage) {
+          if (error.response && error.response.data && error.response.data.error) {
+            this.error = error.response.data.error;
+          } else if (error.response) {
+            this.error = `錯誤碼 ${error.response.status}：${error.response.statusText || fallbackMessage}`;
+          } else if (error.request) {
+            this.error = '無法連線到伺服器，請檢查網路或伺服器狀態';
+          } else {
+            this.error = error.message || fallbackMessage;
           }
+          this.success = '';
+        },
+        formatNumber(val) {
+          const num = parseFloat(val);
+          if (isNaN(num)) return val;
+          return num.toLocaleString();
         }
       },
       mounted() {
-        this.fetchSymbols();
-        this.fetchBalance();
-        this.fetchStatus();
+        this.getBalance();
+        this.fetchPairs();
+        this.fetchOrderHistory();
       }
     });
-  </script>
+  </script>      
 </body>
 </html>
