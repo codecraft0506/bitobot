@@ -170,16 +170,12 @@ class TradeWSManager:
 
     def get_manager_state(self):
         """回傳目前交易機器人狀態資料（字典格式）"""
-        if (not self.is_running) : return {'status': False, 'message' : 'check : 機器人未啟動/停止運作'}
         return {
-            'status' : True,
-            'message' :{
-                "pair": self.pair,
-                "order_size": self.order_size,
-                "price_up_percentage": self.price_increase_percentage * 100,
-                "price_down_percentage": self.price_decrease_percentage * 100,
-                "start_time": self.start_time
-            }
+            "pair": self.pair,
+            "order_size": self.order_size,
+            "price_up_percentage": self.price_increase_percentage * 100,
+            "price_down_percentage": self.price_decrease_percentage * 100,
+            "start_time": self.start_time
         }
 
     def get_headers(self, params):

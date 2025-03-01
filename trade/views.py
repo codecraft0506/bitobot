@@ -8,19 +8,13 @@ import requests
 import json
 
 from .models import OrderHistory
-from .bito import get_balance, get_open_orders
+from .bito import get_balance
 from .ws import TradeWSManager
 
 @csrf_exempt
 def balance(request):
     """取得帳戶餘額"""
-    return JsonResponse(get_balance())
-
-
-@csrf_exempt
-def check_orders(request):
-    return JsonResponse(get_open_orders('btc_twd'))
-
+    return JsonResponse({'status': True, 'message' : get_balance()})
 
 @csrf_exempt
 def get_pairs(request):
@@ -31,7 +25,7 @@ def get_pairs(request):
         # 可選：回傳全部資料或只回傳交易對列表
         return JsonResponse(data)
     else:
-        return JsonResponse({'錯誤訊息': '找不到 tickers'})
+        return JsonResponse({'status': False, 'message': '找不到 tickers'})
 
 
 @csrf_exempt
@@ -76,10 +70,10 @@ def start_trade(request):
         response = wsm.start(pair=pair, order_size=order_size,
                              price_increase_percentage=up, price_decrease_percentage=down, user=request.user)
         if response == 0:
-            return JsonResponse({'status': '交易機器人成功啟動', 'data': wsm.get_manager_state()})
+            return JsonResponse({'status': True, 'data': wsm.get_manager_state()})
         else:
             print(response)
-            return JsonResponse({'status': '交易機器人啟動失敗', 'message': response}, status=400)
+            return JsonResponse({'status': False, 'message': response}, status=400)
 
 
 @csrf_exempt
@@ -88,10 +82,10 @@ def stop_trade(request):
         wsm = TradeWSManager()
         response = wsm.stop()
         if response == 0:
-            return JsonResponse({"status": "交易機器人已停止"})
+            return JsonResponse({"status": True, 'message': '交易機器人已停止'})
         else:
             print(response)
-            return JsonResponse({'status': '交易機器人停止失敗', 'message': response}, status=400)
+            return JsonResponse({'status': False, 'message': response}, status=400)
 
 
 @csrf_exempt
@@ -105,10 +99,10 @@ def update_trade(request):
         response = wsm.update(order_size=order_size,
                               price_increase_percentage=up, price_decrease_percentage=down)
         if response == 0:
-            return JsonResponse({'status': '更新成功', 'data': wsm.get_manager_state()})
+            return JsonResponse({'status': True, 'data': wsm.get_manager_state()})
         else:
             print(response)
-            return JsonResponse({'status': '更新失敗', 'message': response}, status=400)
+            return JsonResponse({'status': False, 'message': response}, status=400)
 
 
 @csrf_exempt
@@ -116,37 +110,15 @@ def check_trade(request):
     if request.method == 'POST':
         wsm = TradeWSManager()
         if wsm.is_running:
-            return JsonResponse(wsm.get_manager_state())
+            return JsonResponse({'status' : True, 'message' : wsm.get_manager_state()})
         else:
-            return JsonResponse({})
-
-
-@csrf_exempt
-def submit_order(request):
-    """
-    處理傳統 HTML 表單的下單請求（例如 templates/trade.html 使用）
-    """
-    if request.method == 'POST':
-        data = json.loads(request.body)
-        # 表單欄位 'symbol' 對應於交易對
-        pair = data.get('symbol')
-        order_size = data.get('order_size')
-        price_up_percentage = data.get('price_up_percentage')
-        price_down_percentage = data.get('price_down_percentage')
-        wsm = TradeWSManager()
-        response = wsm.start(pair=pair, order_size=order_size,
-                             price_increase_percentage=price_up_percentage,
-                             price_decrease_percentage=price_down_percentage)
-        if response == 0:
-            return JsonResponse({'status': '交易機器人成功啟動', 'data': wsm.get_manager_state()})
-        else:
-            return JsonResponse(response)
+            return JsonResponse({'status' : False, 'messsage' : '機器人未啟動/已停止'})
         
 @csrf_exempt
 def get_order_history(request):
     user = request.user  # 取得當前登入的使用者
     orders = OrderHistory.objects.filter(user=user).values("id", "timestamp", "symbol", "price", "order_type", "quantity")
-    return JsonResponse(list(orders), safe=False)
+    return JsonResponse({'status' : True , 'message': list(orders)}, safe=False)
 
 @csrf_exempt
 def event_log(request):

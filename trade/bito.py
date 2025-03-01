@@ -39,12 +39,3 @@ def get_balance():
     url = f"{BASE_URL}/accounts/balance"
     response = requests.get(url, headers=headers)
     return response.json()
-
-
-def get_open_orders(pair):
-    """查詢掛單"""
-    params = {"identity": EMAIL, "nonce": int(time.time() * 1000)}
-    headers = get_headers(params)
-    url = f"{BASE_URL}/orders/all/{pair}"
-    response = requests.get(url, headers=headers)
-    return response.json()
