@@ -274,6 +274,8 @@ class TradeWSManager:
             print(error_msg)
 
     def stop(self):
+        if not self.is_running:
+            return '機器人未運行'
         print("⏳ 停止交易機器人中...")
         self.error_message = self.error_message or []  # 確保 error_message 不為 None
         self.cancel_all_orders()
