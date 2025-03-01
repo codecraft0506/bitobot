@@ -304,13 +304,13 @@
           this.loading = true;
           axios.post('/start_trade/', this.trade)
             .then(response => {
-              if(response.data.success) {
+              if (response.data.success) {
                 this.success = '交易開始成功';
                 this.error = '';
                 this.tradeStatus = response.data.data;
                 this.pollTradeStatus(0);
               } else {
-                this.error = response.data.error;
+                this.error = response.data.error;  // 顯示後端返回的錯誤訊息
                 this.success = '';
               }
             })
@@ -320,11 +320,11 @@
             .finally(() => { this.loading = false; });
         },
         pollTradeStatus(count) {
-          if(count >= 5) return;
+          if (count >= 5) return;
           setTimeout(() => {
             axios.get('/check_trade/')
               .then(res => {
-                if(res.data.success) {
+                if (res.data.success) {
                   this.tradeStatus = res.data.data;
                   this.pollTradeStatus(count + 1);
                 } else {
@@ -341,12 +341,12 @@
           this.loading = true;
           axios.post('/stop_trade/')
             .then(response => {
-              if(response.data.success) {
+              if (response.data.success) {
                 this.success = response.data.data.message;
                 this.error = '';
                 this.tradeStatus = null;
               } else {
-                this.error = response.data.error;
+                this.error = response.data.error;  // 顯示後端返回的錯誤訊息
                 this.success = '';
               }
             })
@@ -359,12 +359,12 @@
           this.loading = true;
           axios.post('/update_trade/', this.trade)
             .then(response => {
-              if(response.data.success) {
+              if (response.data.success) {
                 this.success = '交易更新成功';
                 this.error = '';
                 this.tradeStatus = response.data.data;
               } else {
-                this.error = response.data.error;
+                this.error = response.data.error;  // 顯示後端返回的錯誤訊息
                 this.success = '';
               }
             })
@@ -377,12 +377,12 @@
           this.loading = true;
           axios.get('/check_trade/')
             .then(response => {
-              if(response.data.success) {
+              if (response.data.success) {
                 this.tradeStatus = response.data.data;
                 this.success = '取得交易狀態成功';
                 this.error = '';
               } else {
-                this.error = response.data.error;
+                this.error = response.data.error;  // 顯示後端返回的錯誤訊息
                 this.tradeStatus = null;
                 this.success = '';
               }
@@ -396,7 +396,7 @@
           this.loading = true;
           axios.get('/get_order_history/')
             .then(response => {
-              if(response.data.success) {
+              if (response.data.success) {
                 this.orderHistory = response.data.data;
                 this.success = '取得訂單歷史成功';
                 this.error = '';

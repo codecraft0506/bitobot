@@ -110,8 +110,7 @@ def start_trade(request):
             if resp == 0:
                 return JsonResponse({'success': True, 'data': trade_ws_manager.get_manager_state()}, status=200)
             else:
-                error_detail = resp if isinstance(resp, str) else "\n".join(resp)
-                return JsonResponse({'success': False, 'error': error_detail}, status=200)
+                return JsonResponse({'success': False, 'error': resp}, status=200)
         except Exception as e:
             logger.exception("Internal Server Error in start_trade")
             return JsonResponse({'success': False, 'error': 'Internal Server Error'}, status=200)
@@ -127,8 +126,7 @@ def stop_trade(request):
             if resp == 0:
                 return JsonResponse({"success": True, "data": {"message": "交易機器人已停止"}}, status=200)
             else:
-                error_detail = resp if isinstance(resp, str) else "\n".join(resp)
-                return JsonResponse({"success": False, "error": error_detail}, status=200)
+                return JsonResponse({'success': False, 'error': resp}, status=200)
         except Exception as e:
             logger.exception("Internal Server Error in stop_trade")
             return JsonResponse({"success": False, "error": "Internal Server Error"}, status=200)
@@ -159,8 +157,7 @@ def update_trade(request):
             if resp == 0:
                 return JsonResponse({'success': True, 'data': trade_ws_manager.get_manager_state()}, status=200)
             else:
-                error_detail = resp if isinstance(resp, str) else "\n".join(resp)
-                return JsonResponse({'success': False, 'error': error_detail}, status=200)
+                return JsonResponse({'success': False, 'error': resp}, status=200)
         except Exception as e:
             logger.exception("Internal Server Error in update_trade")
             return JsonResponse({"success": False, "error": "Internal Server Error"}, status=200)

@@ -159,8 +159,8 @@ class TradeWSManager:
     def start(self, pair, order_size, price_increase_percentage, price_decrease_percentage, user):
         if self.is_running:
             return "機器人運作中"
-
-        self.error_message = []
+        
+        self.error_message = []  # 清空錯誤訊息列表
         self.pair = pair
         self.order_size = order_size
         self.price_increase_percentage = price_increase_percentage
@@ -189,21 +189,23 @@ class TradeWSManager:
         )
         self.is_running = True
         self.thread.start()
-        
+
+        # 等待 WS 連線，超時則返回錯誤
         if not self.connected_event.wait(timeout=5):
             self.error_message.append("WS 連線超時")
             print("❌ WS 連線超時")
             self.stop()
             return "\n".join(self.error_message)
 
+        # 如果有錯誤訊息，返回它們
         if self.error_message:
             self.stop()
             return "\n".join(self.error_message)
 
-        return 0
+        return 0  # 成功時返回 0
 
     def update(self, order_size, price_increase_percentage, price_decrease_percentage):
-        self.error_message = []
+        self.error_message = []  # 清空錯誤訊息列表
         self.cancel_all_orders()
         self.order_size = order_size
         self.price_increase_percentage = price_increase_percentage
@@ -299,7 +301,7 @@ class TradeWSManager:
 
     def stop(self):
         print("⏳ 停止交易機器人中...")
-        self.error_message = self.error_message or []
+        self.error_message = self.error_message or []  # 確保 error_message 不為 None
         self.cancel_all_orders()
         if self.ws:
             self.ws.close()
@@ -307,6 +309,7 @@ class TradeWSManager:
             try:
                 self.thread.join(timeout=5)
             except RuntimeError as e:
+                self.error_message.append(f"WebSocket 錯誤: {e}")
                 print(f"❌ WebSocket 錯誤: {e}")
         self.is_running = False
         print("🔴 機器人已停止")
