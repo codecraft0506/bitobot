@@ -168,7 +168,7 @@ class TradeWSManager:
         datas = response.json()['data']
         for data in datas:
             if data.get('pair') == pair:
-                self.precision = data.get('amountPrecision')
+                self.precision = int(data.get('quotePrecision'))
 
         
         self.error_message = []  # 清空錯誤訊息列表
