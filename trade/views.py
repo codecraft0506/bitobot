@@ -4,12 +4,11 @@ import requests
 from functools import wraps
 
 from django.shortcuts import render, redirect
-from django.http import JsonResponse, StreamingHttpResponse
+from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required
 
-from .models import OrderHistory
 from .bito import get_balance
 from .ws import TradeWSManager
 
@@ -178,17 +177,3 @@ def check_trade(request):
             return JsonResponse({"success": False, "error": "Internal Server Error"}, status=200)
     else:
         return JsonResponse({"success": False, "error": "只接受 GET 方法"}, status=200)
-
-@csrf_exempt
-@json_login_required
-def get_order_history(request):
-    try:
-        user = request.user
-        orders = OrderHistory.objects.filter(user=user).values(
-            "order_id", "timestamp", "symbol", "price", "order_type", "quantity"
-        )
-        logger.info(f"Found orders: {orders}")
-        return JsonResponse({'success': True, 'data': list(orders)}, status=200)
-    except Exception as e:
-        logger.exception("Internal Server Error in get_order_history")
-        return JsonResponse({"success": False, "error": "Internal Server Error"}, status=200)

@@ -11,7 +11,6 @@ import ssl
 from datetime import datetime
 from dotenv import load_dotenv
 from django.contrib.auth.models import User
-from .models import OrderHistory
 
 load_dotenv()
 
@@ -68,76 +67,20 @@ class TradeWSManager:
         response = json.loads(message)
         print("📊 訂單更新:")
 
-        if ('event' in response and response['event'] == 'ACTIVE_ORDERS' and
-            'data' in response and self.pair in response['data']):
-            orders = response['data'][self.pair]
-            for order in orders:
-                print(order)
-                if order.get('status') == 0:
-                    print('訂單交易中')
-                if order.get('status') == 1:
-                    self.create_order_history(
-                        id=order.get('id'),
-                        timestamp=order.get('updatedTimestamp'),
-                        price=order.get('avgExecutionPrice'),
-                        order_type=order.get('action'), 
-                        quantity=order.get('executedAmount')
-                    )
-                if order.get('status') == 2:
-                    if order.get('id') == self.sell_order_id:
-                        print("賣單完全成交，取消買單並重新下單")
-                        self.create_order_history(
-                            id=order.get('id'),
-                            timestamp=order.get('updatedTimestamp'),
-                            price=order.get('avgExecutionPrice'),
-                            order_type=order.get('action'), 
-                            quantity=order.get('executedAmount')
-                        )
-                        self.cancel_order(self.buy_order_id)
-                    elif order.get('id') == self.buy_order_id:
-                        print("買單完全成交，取消賣單並重新下單")
-                        self.create_order_history(
-                            id=order.get('id'),
-                            timestamp=order.get('updatedTimestamp'),
-                            price=order.get('avgExecutionPrice'),
-                            order_type=order.get('action'),
-                            quantity=order.get('executedAmount')
-                        )
-                        self.cancel_order(self.sell_order_id)
-                    self.place_initial_orders()
-                    break
+        if ('data' in response and 'orderID' in response['data']):
+            order_data = self.get_order_data(response['data']['orderID'])
+            print(order_data)
 
-    def create_order_history(self, id, timestamp, price, order_type, quantity):
-        # 檢查 self.user 是否已經是 User 物件
-        if isinstance(self.user, User):
-            user_obj = self.user
-        else:
-            # 假設 self.user 為使用者 ID
-            user_obj = User.objects.get(id=self.user)
-
-        # 將 timestamp 轉換為 datetime 物件
-        ts = None
-        if isinstance(timestamp, (int, float)):
-            ts = datetime.fromtimestamp(timestamp / 1000)
-        elif isinstance(timestamp, str):
-            try:
-                ts = datetime.fromisoformat(timestamp.rstrip("Z"))
-            except Exception:
-                ts = datetime.now()
-        else:
-            ts = datetime.now()
-
-        OrderHistory.objects.update_or_create(
-            order_id=id,
-            defaults={
-                "user": user_obj,
-                "timestamp": ts,
-                "symbol": self.pair,
-                "price": price,
-                "order_type": order_type,
-                "quantity": quantity
-            }
-        )
+            if order_data.get('status') == 0:
+                print('訂單交易中')
+            if order_data.get('status') == 2:
+                if order_data.get('id') == self.sell_order_id:
+                    print("賣單完全成交，取消買單並重新下單")
+                    self.cancel_order(self.buy_order_id)
+                elif order_data.get('id') == self.buy_order_id:
+                    print("買單完全成交，取消賣單並重新下單")
+                    self.cancel_order(self.sell_order_id)
+                self.place_initial_orders()
 
     def on_error(self, ws, error):
         err_msg = f"WebSocket 錯誤: {error}"
@@ -180,7 +123,7 @@ class TradeWSManager:
         self.user = user
 
         print("⏳ 嘗試連線中...")
-        self.ws_url = "wss://stream.bitopro.com:443/ws/v1/pub/auth/orders"
+        self.ws_url = "wss://stream.bitopro.com:443/ws/v1/pub/auth/user-trades"
         params = {
             'identity': EMAIL,
             'nonce': int(time.time() * 1000)
@@ -235,6 +178,21 @@ class TradeWSManager:
             "price_down_percentage": self.price_decrease_percentage * 100,
             "start_time": self.start_time
         }
+    
+    def get_order_data(self, order_id):
+        params = {
+            'pair' : self.pair,
+            'order_id': order_id,
+            'nonce': int(time.time() * 1000)
+        }
+
+        headers = self.get_headers(params)
+
+        url = f'{BASE_URL}/orders/{self.pair}/{order_id}'
+        response = requests.get(url, headers=headers)
+        data = response.json()
+        return data
+        
 
     def get_headers(self, params):
         payload = base64.urlsafe_b64encode(json.dumps(params).encode('utf-8')).decode('utf-8')

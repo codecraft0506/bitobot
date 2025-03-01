@@ -1,7 +1,7 @@
 from django.urls import path
 from .views import (
     home, login_view, get_pairs, balance,
-    start_trade, stop_trade, update_trade, check_trade, get_order_history
+    start_trade, stop_trade, update_trade, check_trade
 )
 
 urlpatterns = [
@@ -13,5 +13,4 @@ urlpatterns = [
     path('stop_trade/', stop_trade, name='stop_trade'),
     path('update_trade/', update_trade, name='update_trade'),
     path('check_trade/', check_trade, name='check_trade'),
-    path('get_order_history/', get_order_history, name='get_order_history'),
 ]
