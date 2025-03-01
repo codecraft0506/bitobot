@@ -320,24 +320,25 @@
               this.handleAxiosError(error, '啟動交易失敗');
             })
             .finally(() => { this.loading = false; });
-        },            
-        pollTradeStatus(count) {
-          if (count >= 5) return;
-          setTimeout(() => {
-            axios.get('/check_trade/')
-              .then(res => {
-                if (res.data.success) {
-                  this.tradeStatus = res.data.data;
-                  this.pollTradeStatus(count + 1);
-                } else {
-                  this.error = '交易機器人啟動失敗：' + res.data.error;
-                  this.tradeStatus = null;
-                }
-              })
-              .catch(error => {
-                this.handleAxiosError(error, '檢查交易狀態失敗');
-              });
-          }, 2000);
+        },
+        checkTrade() {
+          this.loading = true;
+          axios.get('/check_trade/')
+            .then(response => {
+              if (response.data.success) {
+                this.tradeStatus = response.data.data;
+                this.success = '取得交易狀態成功';
+                this.error = '';
+              } else {
+                this.error = response.data.error;
+                this.tradeStatus = null;
+                this.success = '';
+              }
+            })
+            .catch(error => {
+              this.handleAxiosError(error, '檢查交易狀態失敗');
+            })
+            .finally(() => { this.loading = false; });
         },
         stopTrade() {
           this.loading = true;
@@ -381,43 +382,6 @@
             })
             .finally(() => { this.loading = false; });
         },
-        checkTrade() {
-          this.loading = true;
-          axios.get('/check_trade/')
-            .then(response => {
-              if (response.data.success) {
-                this.tradeStatus = response.data.data;
-                this.success = '取得交易狀態成功';
-                this.error = '';
-              } else {
-                this.error = response.data.error;
-                this.tradeStatus = null;
-                this.success = '';
-              }
-            })
-            .catch(error => {
-              this.handleAxiosError(error, '檢查交易狀態失敗');
-            })
-            .finally(() => { this.loading = false; });
-        },
-        fetchOrderHistory() {
-          this.loading = true;
-          axios.get('/get_order_history/')
-            .then(response => {
-              if (response.data.success) {
-                this.orderHistory = response.data.data;
-                this.success = '取得訂單歷史成功';
-                this.error = '';
-              } else {
-                this.error = response.data.error;
-                this.success = '';
-              }
-            })
-            .catch(error => {
-              this.handleAxiosError(error, '取得訂單歷史失敗');
-            })
-            .finally(() => { this.loading = false; });
-        },
         handleAxiosError(error, fallbackMessage) {
           if (error.response && error.response.data && error.response.data.error) {
             this.error = error.response.data.error;
@@ -439,7 +403,6 @@
       mounted() {
         this.getBalance();
         this.fetchPairs();
-        this.fetchOrderHistory();
       }
     });
   </script>      
