@@ -46,6 +46,7 @@ class TradeWSManager:
             self.sell_order_id = None  # 賣單 ID
             self.buy_order_id = None   # 買單 ID
             self.user = None 
+            self.precision = None
             self.log_messages = []
             # 用來判斷 WS 是否連線成功
             self.connected_event = threading.Event()
@@ -162,6 +163,14 @@ class TradeWSManager:
         if self.is_running:
             return "機器人運作中"
         
+        url = 'https://api.bitopro.com/v3/provisioning/trading-pairs'
+        response = requests.get(url)
+        datas = response.json()['data']
+        for data in datas:
+            if data.get('pair') == pair:
+                self.precision = data.get('amountPrecision')
+
+        
         self.error_message = []  # 清空錯誤訊息列表
         self.pair = pair
         self.order_size = order_size
@@ -205,7 +214,6 @@ class TradeWSManager:
 
         # 如果有錯誤訊息，返回它們
         if self.error_message:
-            self.stop()
             return "\n".join(self.error_message)
 
         return 0  # 成功時返回 0
@@ -252,7 +260,7 @@ class TradeWSManager:
         params = {
             "action": action,
             "amount": str(self.order_size),
-            "price": str(round(price, 2)),
+            "price": str(round(price, self.precision)),
             "type": "LIMIT",
             "timestamp": int(time.time() * 1000)
         }
@@ -261,7 +269,7 @@ class TradeWSManager:
         response = requests.post(url, json=params, headers=headers)
         if response.status_code == 200:
             order_id = response.json().get("orderId")
-            msg = f"✅ {action} 限價單建立成功: 價格 {str(round(price, 2))}, 訂單 ID: {order_id}"
+            msg = f"✅ {action} 限價單建立成功: 價格 {str(round(price, self.precision))}, 訂單 ID: {order_id}"
             print(msg)
             self.log_print({'status': True, 'message': msg})
             return order_id
@@ -282,6 +290,7 @@ class TradeWSManager:
         self.buy_order_id = self.place_order("BUY", buy_price)
         if self.sell_order_id is None and self.buy_order_id is None:
             error_msg = "初始掛單全部失敗，請檢查 API 金鑰或網路連線"
+            self.stop()
             self.error_message.append(error_msg)
             print(f"❌ {error_msg}")
 

@@ -44,7 +44,7 @@ def balance(request):
 @csrf_exempt
 def get_pairs(request):
     try:
-        url = 'https://api.bitopro.com/v3/tickers'
+        url = 'https://api.bitopro.com/v3/provisioning/trading-pairs'
         response = requests.get(url)
         if response.status_code == 200:
             data = response.json()
