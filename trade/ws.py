@@ -64,6 +64,7 @@ class TradeWSManager:
 
     def on_message(self, ws, message):
         """監聽 WebSocket 訂單狀態變化"""
+        if self.canceling : return
         response = json.loads(message)
         print("📊 訂單更新:")
 
@@ -76,10 +77,9 @@ class TradeWSManager:
             if order_data.get('status') == 2:
                 if order_data.get('id') == self.sell_order_id:
                     print("賣單完全成交，取消買單並重新下單")
-                    self.cancel_order(self.buy_order_id)
                 elif order_data.get('id') == self.buy_order_id:
                     print("買單完全成交，取消賣單並重新下單")
-                    self.cancel_order(self.sell_order_id)
+                self.cancel_all_orders()
                 self.place_initial_orders()
 
     def on_error(self, ws, error):
@@ -120,6 +120,7 @@ class TradeWSManager:
         self.price_decrease_percentage = price_decrease_percentage
         self.start_time = datetime.now().isoformat(timespec='seconds') + "Z"
         self.wait_start = False
+        self.canceling = False
         self.user = user
 
         print("⏳ 嘗試連線中...")
@@ -254,8 +255,26 @@ class TradeWSManager:
             print(f"❌ {error_msg}")
 
     def cancel_all_orders(self):
-        self.cancel_order(self.buy_order_id)
-        self.cancel_order(self.sell_order_id)
+        self.canceling = True
+        time.sleep(1)
+        params = {
+            'identity' : EMAIL,
+            'nonce' : int(time.time() * 1000),
+        }
+        
+        headers = self.get_headers(params)
+        url = f'{BASE_URL}/orders/all/'
+        response = requests.delete(url=url, headers=headers)
+        if response.status_code == 200:
+            self.buy_order_id = None
+            self.sell_order_id = None
+            print('訂單全部取消成功')
+        else:
+            error_info = response.json()
+            error_msg = f'訂單取消失敗 : {error_info}'
+            self.error_message.append(error_msg)
+            print(error_msg)
+        self.canceling = False
 
     def cancel_order(self, order_id):
         if order_id is None:
