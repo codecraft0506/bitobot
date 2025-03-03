@@ -2,7 +2,9 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>交易介面</title>
+  <!-- 加入 viewport meta 標籤 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BitoPro 網格交易系統</title>
   <!-- Vuetify CSS -->
   <link href="https://cdn.jsdelivr.net/npm/vuetify@2.6.0/dist/vuetify.min.css" rel="stylesheet">
   <!-- Google Fonts: Roboto 與 Material Design Icons -->
@@ -11,6 +13,10 @@
   <style>
     body { font-family: 'Roboto', sans-serif; }
     .status-table td { padding: 8px 16px; }
+    /* 手機裝置下調整表格內邊距 */
+    @media (max-width: 600px) {
+      .status-table td { padding: 4px 8px; }
+    }
   </style>
 </head>
 <body>
@@ -45,10 +51,12 @@
         </v-list>
       </v-navigation-drawer>
       
-      <!-- 上方導覽列：增加手機版導覽圖示 -->
+      <!-- 上方導覽列：包含深色模式切換 -->
       <v-app-bar app clipped-left>
         <v-app-bar-nav-icon @click="drawer = !drawer"></v-app-bar-nav-icon>
-        <v-toolbar-title>交易機器人介面</v-toolbar-title>
+        <v-toolbar-title>網格交易系統</v-toolbar-title>
+        <v-spacer></v-spacer>
+        <v-switch v-model="$vuetify.theme.dark" label="深色模式" inset></v-switch>
       </v-app-bar>
       
       <!-- 主要內容區 -->
@@ -80,18 +88,19 @@
               <v-card-title>開始交易</v-card-title>
               <v-card-text>
                 <v-form ref="tradeForm">
-                  <!-- 交易對下拉選單 -->
+                  <!-- 交易對下拉選單，若機器人運行中則不可調整 -->
                   <v-select 
                     label="交易對 (pair)" 
                     v-model="trade.symbol" 
                     :items="pairs" 
                     item-text="pair"
                     item-value="pair"
+                    :disabled="tradeStatus !== null"
                     required
                   ></v-select>
-                  <!-- 其他參數預設值 -->
+                  <!-- 其他參數 -->
                   <v-text-field
-                    label="訂單數量"
+                    label="每單交易顆數"
                     v-model="trade.order_size"
                     required
                     type="number"
@@ -169,6 +178,8 @@
                 <v-data-table
                   :headers="balanceHeaders"
                   :items="balanceData"
+                  :sort-by="['amount']"
+                  :sort-desc="[true]"
                   class="elevation-1"
                   dense
                 >
@@ -209,7 +220,7 @@
     new Vue({
       el: '#app',
       delimiters: ['[[', ']]'],
-      vuetify: new Vuetify(),
+      vuetify: new Vuetify(), // 可在此預設深色模式：theme: { dark: true }
       data: {
         drawer: false,
         currentTab: 'trade',
@@ -260,7 +271,8 @@
               if(response.data.success) {
                 const arr = response.data.data.data || response.data.data;
                 this.pairs = arr;
-                if (Array.isArray(this.pairs) && this.pairs.length > 0) {
+                // 若尚未啟動交易，則預設選擇第一個交易對
+                if (Array.isArray(this.pairs) && this.pairs.length > 0 && !this.tradeStatus) {
                   this.trade.symbol = this.pairs[0].pair;
                 }
                 this.errorMessages = [];
@@ -274,17 +286,26 @@
             })
             .finally(() => { this.loading = false; });
         },
+        syncTradeParameters() {
+          if (this.tradeStatus) {
+            this.trade.symbol = this.tradeStatus.pair;
+            this.trade.order_size = this.tradeStatus.order_size;
+            this.trade.price_up_percentage = this.tradeStatus.price_up_percentage;
+            this.trade.price_down_percentage = this.tradeStatus.price_down_percentage;
+          }
+        },
         startTrade() {
           this.loading = true;
           axios.post('/start_trade/', this.trade)
             .then(response => {
-              this.checkTrade();
               if (response.data.success) {
                 this.successMessages.push('交易開始成功');
                 this.tradeStatus = response.data.data;
+                this.syncTradeParameters();
               } else {
                 this.errorMessages.push(response.data.error);
               }
+              this.checkTrade();
             })
             .catch(error => {
               this.handleAxiosError(error, '啟動交易失敗');
@@ -297,6 +318,7 @@
             .then(response => {
               if (response.data.success) {
                 this.tradeStatus = response.data.data;
+                this.syncTradeParameters();
                 this.successMessages.push('取得交易狀態成功');
               } else {
                 this.errorMessages.push(response.data.error);
@@ -312,7 +334,6 @@
           this.loading = true;
           axios.post('/stop_trade/')
             .then(response => {
-              this.checkTrade();
               if (response.data.success) {
                 this.successMessages.push(response.data.data.message);
                 this.errorMessages = [];
@@ -321,6 +342,7 @@
                 this.errorMessages.push(response.data.error);
                 this.successMessages = [];
               }
+              this.checkTrade();
             })
             .catch(error => {
               this.handleAxiosError(error, '停止交易失敗');
@@ -331,15 +353,16 @@
           this.loading = true;
           axios.post('/update_trade/', this.trade)
             .then(response => {
-              this.checkTrade();
               if (response.data.success) {
                 this.successMessages.push('交易更新成功');
                 this.errorMessages = [];
                 this.tradeStatus = response.data.data;
+                this.syncTradeParameters();
               } else {
                 this.errorMessages.push(response.data.error);
                 this.successMessages = [];
               }
+              this.checkTrade();
             })
             .catch(error => {
               this.handleAxiosError(error, '更新交易失敗');
@@ -357,7 +380,6 @@
           } else {
             message = error.message || fallbackMessage;
           }
-
           this.errorMessages.push(message);
           this.successMessages = [];
         },
