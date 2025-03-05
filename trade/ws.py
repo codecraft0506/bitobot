@@ -88,11 +88,22 @@ class TradeWSManager:
         self.error_message.append(err_msg)
         print(f"❌ {err_msg}")
 
-    def on_close(self, ws, close_status_code, close_msg):
+    def on_close(self, ws, close_status_code, close_msg, attempt = 0):
         print("🔴 WebSocket 連線關閉")
-        if not self.manual_close:  # 只有在非手動關閉的情況下才啟動重連
-            print("⚠️ WebSocket 連線異常，啟動自動重連機制")
-            self.reconnect()
+
+        if self.manual_close:
+            print("🛑 手動關閉 WebSocket，不啟動重連")
+            return 
+        
+        if attempt > 3:
+            error_msg = "WebSocket 連線失敗，超過最大嘗試次數，機器人停止"
+            self.error_message.append(error_msg)
+            print(f"❌ {error_msg}")
+            self.stop()
+            return
+        
+        print(f"⚠️ WebSocket 斷線，嘗試重新連線 (第 {attempt} 次)...")
+        self.reconnect(attempt + 1) 
 
     def on_open(self, ws):
         print("✅ WebSocket 連線成功，開始監聽訂單狀態")
@@ -182,7 +193,7 @@ class TradeWSManager:
         if not self.is_running:
             return '機器人未運行'
         print("⏳ 停止交易機器人中...")
-        self.error_message = self.error_message or []  # 確保 error_message 不為 None
+        self.error_message = [] # 清空錯誤訊息列表
         self.manual_close = True
         self.cancel_all_orders()
         if self.ws:
@@ -197,20 +208,8 @@ class TradeWSManager:
         print("🔴 機器人已停止")
         return "\n".join(self.error_message) if self.error_message else 0
       
-    def reconnect(self, attempt=1):
+    def reconnect(self, attempt):
         """嘗試重新連接 WebSocket"""
-        if self.manual_close:
-            print("🛑 手動關閉 WebSocket，不啟動重連")
-            return  # 如果是手動關閉，則不進行重連
-
-        if attempt > 3:  # 最多嘗試 3 次
-            error_msg = "WebSocket 連線失敗，超過最大嘗試次數，機器人停止"
-            self.error_message.append(error_msg)
-            print(f"❌ {error_msg}")
-            self.stop()
-            return
-
-        print(f"🔄 嘗試重新連線 (第 {attempt} 次)...")
         time.sleep(5)  # 等待 5 秒後重新嘗試連線
 
         self.ws = websocket.WebSocketApp(
@@ -222,7 +221,7 @@ class TradeWSManager:
             on_open=self.on_open,
             on_message=self.on_message,
             on_error=self.on_error,
-            on_close=lambda ws, code, msg: self.reconnect(attempt + 1)  # 重新觸發重連
+            on_close=lambda ws, code, msg: self.on_close(ws, code, msg, attempt)  # 傳遞 `attempt` 次數
         )
 
         self.thread = threading.Thread(
