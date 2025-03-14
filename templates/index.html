@@ -246,6 +246,26 @@
         pairs: []
       },
       methods: {
+        // 新增自動隱藏訊息的函式，timeout 以毫秒計，預設 5000 毫秒 (5 秒)
+        addAutoDismissMessage(type, msg, timeout = 5000) {
+          if (type === 'success') {
+            this.successMessages.push(msg);
+            setTimeout(() => {
+              const index = this.successMessages.indexOf(msg);
+              if (index !== -1) {
+                this.successMessages.splice(index, 1);
+              }
+            }, timeout);
+          } else if (type === 'error') {
+            this.errorMessages.push(msg);
+            setTimeout(() => {
+              const index = this.errorMessages.indexOf(msg);
+              if (index !== -1) {
+                this.errorMessages.splice(index, 1);
+              }
+            }, timeout);
+          }
+        },
         getBalance() {
           this.loading = true;
           axios.get('/balance/')
@@ -253,9 +273,10 @@
               if (response.data.success) {
                 let balanceObj = response.data.data.balance;
                 this.balanceData = balanceObj.data || []; 
+                // 清除錯誤訊息
                 this.errorMessages = [];
               } else {
-                this.errorMessages.push(response.data.error);
+                this.addAutoDismissMessage('error', response.data.error);
                 this.successMessages = [];
               }
             })
@@ -277,7 +298,7 @@
                 }
                 this.errorMessages = [];
               } else {
-                this.errorMessages.push(response.data.error);
+                this.addAutoDismissMessage('error', response.data.error);
                 this.successMessages = [];
               }
             })
@@ -299,11 +320,11 @@
           axios.post('/start_trade/', this.trade)
             .then(response => {
               if (response.data.success) {
-                this.successMessages.push('交易開始成功');
+                this.addAutoDismissMessage('success', '交易開始成功');
                 this.tradeStatus = response.data.data;
                 this.syncTradeParameters();
               } else {
-                this.errorMessages.push(response.data.error);
+                this.addAutoDismissMessage('error', response.data.error);
               }
               this.checkTrade();
             })
@@ -319,9 +340,9 @@
               if (response.data.success) {
                 this.tradeStatus = response.data.data;
                 this.syncTradeParameters();
-                this.successMessages.push('取得交易狀態成功');
+                this.addAutoDismissMessage('success', '取得交易狀態成功');
               } else {
-                this.errorMessages.push(response.data.error);
+                this.addAutoDismissMessage('error', response.data.error);
                 this.tradeStatus = null;
               }
             })
@@ -335,11 +356,11 @@
           axios.post('/stop_trade/')
             .then(response => {
               if (response.data.success) {
-                this.successMessages.push(response.data.data.message);
+                this.addAutoDismissMessage('success', response.data.data.message);
                 this.errorMessages = [];
                 this.tradeStatus = null;
               } else {
-                this.errorMessages.push(response.data.error);
+                this.addAutoDismissMessage('error', response.data.error);
                 this.successMessages = [];
               }
               this.checkTrade();
@@ -354,12 +375,12 @@
           axios.post('/update_trade/', this.trade)
             .then(response => {
               if (response.data.success) {
-                this.successMessages.push('交易更新成功');
+                this.addAutoDismissMessage('success', '交易更新成功');
                 this.errorMessages = [];
                 this.tradeStatus = response.data.data;
                 this.syncTradeParameters();
               } else {
-                this.errorMessages.push(response.data.error);
+                this.addAutoDismissMessage('error', response.data.error);
                 this.successMessages = [];
               }
               this.checkTrade();
@@ -380,7 +401,7 @@
           } else {
             message = error.message || fallbackMessage;
           }
-          this.errorMessages.push(message);
+          this.addAutoDismissMessage('error', message);
           this.successMessages = [];
         },
         formatNumber(val) {
