@@ -38,10 +38,10 @@ params = {
 
 headers = get_headers(params)
 
-url = f'{BASEURL}/orders/all/'
+url = f'{BASEURL}/orders/open/'
 
-response = requests.delete(url=url, headers=headers)
+response = requests.get(url=url, headers=headers)
 if response is not None:
-    print("Cancel Order:", response.json())
+    print("Orders:", response.json())
 else:
     print("Request failed.")

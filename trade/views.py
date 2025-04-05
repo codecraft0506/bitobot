@@ -1,6 +1,7 @@
 import json
 import logging
 import requests
+from decimal import Decimal
 from functools import wraps
 
 from django.shortcuts import render, redirect
@@ -10,7 +11,8 @@ from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required
 
 from .bito import get_balance
-from .ws import TradeWSManager
+from .ws import TradeWSManager, EMAIL
+from .models import Trade
 
 # 設定 logger
 logger = logging.getLogger(__name__)
@@ -177,3 +179,143 @@ def check_trade(request):
             return JsonResponse({"success": False, "error": "Internal Server Error"}, status=200)
     else:
         return JsonResponse({"success": False, "error": "只接受 GET 方法"}, status=200)
+    
+@csrf_exempt
+@json_login_required
+def get_fee(request):
+    if request.method == 'GET':
+        try:
+            trades = Trade.objects.filter(user_email=EMAIL)
+            usdt_fee = 0
+            twd_fee = 0
+
+            for trade in trades:
+                if (trade.fee_symbol == 'twd'):
+                    twd_fee += trade.fee
+                elif (trade.fee_symbol == 'usdt'):
+                    usdt_fee += trade.fee
+                elif (trade.fee_symbol != 'usdt' or trade.fee_symbol != 'twd'):
+                    if trade.pair.find('usdt') != -1:
+                        usdt_fee += trade.price * trade.fee
+                    elif trade.pair.find('twd') != -1:
+                        twd_fee += trade.price * trade.fee
+                    
+
+            print(f'twd_fee : {twd_fee}')
+            print(f'usdt_fee: {usdt_fee}')
+            return JsonResponse(
+                {
+                    "response":{
+                            "status" : "success", 
+                            "message" : "get fee",
+                            "data" : {
+                                "twd_fee" : float(twd_fee),
+                                "usdt_fee" : float(usdt_fee)
+                            }
+                    },
+                    "code" : "200"
+                }
+            )
+        except Exception as e:
+            logger.exception("Internal Server Error in get_fee")
+            return JsonResponse(
+            {
+                "response":{
+                    "status" : "error", 
+                    "message" : f"error message from get_fee : {e}",
+                    "data" : {}
+                },
+                "code" : "400"
+            }
+        )
+    else:
+        return JsonResponse(
+            {
+                "response":{
+                    "status" : "error", 
+                    "message" : "只接受 GET 方法",
+                    "data" : {}
+                },
+                "code" : "400"
+            }
+        )
+
+@csrf_exempt
+@json_login_required
+def get_profit(request):
+    if request.method == 'GET':
+        try:
+            pair_profit_dict = {}
+            url = 'https://api.bitopro.com/v3/provisioning/trading-pairs'
+            response = requests.get(url)
+            datas = response.json().get('data')
+            for data in datas:
+                pair = data.get('pair')
+                pair_profit_dict[pair] = get_pair_profit(pair)
+
+            return JsonResponse(
+                {
+                    "response":{
+                            "status" : "success", 
+                            "message" : "get profit",
+                            "data" : pair_profit_dict
+                    },
+                    "code" : "200"
+                }
+            )
+        except Exception as e:
+            logger.exception("Internal Server Error in get_profit")
+            return JsonResponse(
+            {
+                "response":{
+                    "status" : "error", 
+                    "message" : f"error message from get_profit : {e}",
+                    "data" : {}
+                },
+                "code" : "400"
+            }
+        )
+    else:
+        return JsonResponse(
+            {
+                "response":{
+                    "status" : "error", 
+                    "message" : "只接受 GET 方法",
+                    "data" : {}
+                },
+                "code" : "400"
+            }
+        )
+    
+def get_pair_profit(pair):
+    buy_trades = Trade.objects.filter(user_email=EMAIL, pair=pair, action = 'BUY').order_by('trade_date')
+    sell_trades = Trade.objects.filter(user_email=EMAIL, pair=pair, action = 'SELL').order_by('trade_date')
+
+    profit = Decimal('0')
+    buy_index = 0
+    buy_qty = Decimal('0')
+    buy_price = Decimal('0')
+
+    for sell in sell_trades:
+        sell_qty = sell.quantity
+        sell_price = sell.price
+        print(f'SELL: {sell_qty} @ {sell_price}')
+
+        while (sell_qty > 0 and (buy_index < len(buy_trades) or buy_qty > 0)):
+
+            if buy_qty <= 0:
+                buy = buy_trades[buy_index]
+                buy_qty = buy.quantity
+                buy_price = buy.price
+                buy_index += 1
+                continue
+            
+            matched_qty = min(sell_qty, buy_qty)
+            profit += matched_qty * (sell_price - buy_price)
+            sell_qty -= matched_qty
+            buy_qty -= matched_qty
+
+        if sell_qty > 0:
+            print('異常 : 出現未匹配的賣出單據')
+        
+    return profit

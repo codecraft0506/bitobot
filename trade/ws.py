@@ -8,9 +8,10 @@ import base64
 import threading
 import websocket
 import ssl
+from decimal import Decimal
 from datetime import datetime
 from dotenv import load_dotenv
-from django.contrib.auth.models import User
+from .models import Trade
 
 load_dotenv()
 
@@ -71,6 +72,7 @@ class TradeWSManager:
 
         if ('data' in response and 'orderID' in response['data']):
             order_data = self.get_order_data(response['data']['orderID'])
+            self.save_order(order_data)
             print(order_data)
 
             if order_data.get('status') == 0:
@@ -116,7 +118,6 @@ class TradeWSManager:
             self.stop()
         self.wait_start = True
         
-
     def start(self, pair, order_size, price_increase_percentage, price_decrease_percentage, user):
         if self.is_running:
             return "機器人運作中"
@@ -347,3 +348,42 @@ class TradeWSManager:
             error_msg = f"❌ 訂單 {order_id} 取消失敗: {error_info}"
             self.error_message.append(error_msg)
             print(error_msg)
+
+    def save_order(self, data):
+        Trade.objects.update_or_create(
+            defaults={
+                'user_email': EMAIL,
+                'id': data.get('id'),
+                'pair': data.get('pair'),
+                'action': data.get('action'),
+                'quantity': Decimal(data.get('executedAmount')),
+                'price': Decimal(data.get('avgExecutionPrice')),
+                'fee': Decimal(data.get('fee')),
+                'fee_symbol': data.get('feeSymbol'),
+                'trade_date': data.get('updatedTimestamp'),
+                'trade_or_not' : True if int(data.get('status')) == 2 else False 
+            },
+            pk = data.get('id')
+        )
+
+'''
+Orders: {'data': [{
+'action': 'BUY',
+'avgExecutionPrice': '0', 
+'fee': '0', 
+'feeSymbol': 'pol', 
+'bitoFee': '0', 
+'executedAmount': '0', 
+'id': '2349437194', 
+'originalAmount': '1', 
+'pair': 'pol_twd', 
+'price': '6.308', 
+'remainingAmount': '1', 
+'seq': 'POLTWD9744129620', 
+'status': 0, 
+'createdTimestamp': 1743782486, 
+'updatedTimestamp': 1743782486, 
+'total': '0', 
+'type': 'LIMIT', 
+'timeInForce': 'GTC'}]}
+'''
