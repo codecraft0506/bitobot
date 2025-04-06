@@ -11,7 +11,7 @@ import ssl
 from decimal import Decimal
 from datetime import datetime
 from dotenv import load_dotenv
-from .models import Trade
+from .models import Trade,SpotTrade
 
 load_dotenv()
 
@@ -47,6 +47,11 @@ class TradeWSManager:
             self.buy_order_id = None   # 買單 ID
             self.user = None 
             self.precision = None
+            self.last_price_5min_ago = None
+            self.is_exceed_5min=None
+            self.target_after_exceed = None
+            self.price_timer_started = False
+            self.price_timer = None
             self.log_messages = []
             # 用來判斷 WS 是否連線成功
             self.connected_event = threading.Event()
@@ -74,17 +79,19 @@ class TradeWSManager:
             order_data = self.get_order_data(response['data']['orderID'])
             self.save_order(order_data)
             print(order_data)
-
             if order_data.get('status') == 0:
                 print('訂單交易中')
             if order_data.get('status') == 2:
                 if order_data.get('id') == self.sell_order_id:
-                    print("賣單完全成交，取消買單並重新下單")
+                    print("賣單完全成交，取消買單")
+                    self.cancel_order(self.buy_order_id)
                 elif order_data.get('id') == self.buy_order_id:
-                    print("買單完全成交，取消賣單並重新下單")
-                self.cancel_all_orders()
-                self.place_initial_orders()
-
+                    print("買單完全成交，取消賣單")
+                    self.cancel_order(self.sell_order_id)
+                if self.price_timer is not None:
+                    self.price_timer.cancel()
+                    self.price_timer_started = False
+                    print("🛑 已停止價格更新計時器")
     def on_error(self, ws, error):
         err_msg = f"WebSocket 錯誤: {error}"
         self.error_message.append(err_msg)
@@ -197,6 +204,10 @@ class TradeWSManager:
         self.error_message = [] # 清空錯誤訊息列表
         self.manual_close = True
         self.cancel_all_orders()
+        if self.price_timer is not None:
+            self.price_timer.cancel()
+            self.price_timer_started = False
+            print("🛑 已停止價格更新計時器")
         if self.ws:
             self.ws.close()
         if self.thread:
@@ -273,7 +284,7 @@ class TradeWSManager:
         data = response.json()
         return float(data["data"]["lastPrice"])
 
-    def place_order(self, action, price):
+    def place_order(self, action, price, is_exceed=False, target_after_exceed=None):
         params = {
             "action": action,
             "amount": str(self.order_size),
@@ -281,14 +292,16 @@ class TradeWSManager:
             "type": "LIMIT",
             "timestamp": int(time.time() * 1000)
         }
+
         headers = self.get_headers(params)
         url = f"{BASE_URL}/orders/{self.pair}"
         response = requests.post(url, json=params, headers=headers)
+
         if response.status_code == 200:
             order_id = response.json().get("orderId")
             msg = f"✅ {action} 限價單建立成功: 價格 {str(round(price, self.precision))}, 訂單 ID: {order_id}"
             print(msg)
-            self.log_print({'status': True, 'message': msg})
+            self.log_print({'status': True, 'message': msg})       
             return order_id
         else:
             error_info = response.json()
@@ -297,19 +310,21 @@ class TradeWSManager:
             self.error_message.append(error_msg)
             self.log_print({'status': False, 'message': f"{action} 限價單建立失敗: {error_info}"})
             return None
-
     def place_initial_orders(self):
+        self.start_price_timer()
         current_price = self.get_current_price()
         print(f"📈 當前價格: {current_price}")
         sell_price = current_price * (1 + self.price_increase_percentage)
         self.sell_order_id = self.place_order("SELL", sell_price)
         buy_price = current_price * (1 - self.price_decrease_percentage)
-        self.buy_order_id = self.place_order("BUY", buy_price)
+        self.buy_order_id = self.place_order("BUY",buy_price)
         if self.sell_order_id is None and self.buy_order_id is None:
             error_msg = "初始掛單全部失敗，請檢查 API 金鑰或網路連線"
             self.stop()
             self.error_message.append(error_msg)
             print(f"❌ {error_msg}")
+
+
 
     def cancel_all_orders(self):
         self.canceling = True
@@ -365,6 +380,44 @@ class TradeWSManager:
             },
             pk = data.get('id')
         )
+    def start_price_timer(self):
+        if getattr(self, 'price_timer_started', False):
+            return  # 已啟動就不再執行
+        self.price_timer_started = True
+        def update_price():
+            current = self.get_current_price()
+            # 第一次執行時 last_price 可能是 None
+            if self.last_price_5min_ago is not None:
+                change_pct = abs(current - self.last_price_5min_ago) / self.last_price_5min_ago
+                self.is_exceed_5min = change_pct >= 0.05
+                if(change_pct >=0.1):
+                    print(f"⚠️ 價格在 5 分鐘內變動超過 10%：{round(change_pct*100, 2)}%，取消掛單")
+                    if self.buy_order_id:
+                        self.cancel_order(self.buy_order_id)
+                    if self.sell_order_id:
+                        self.cancel_order(self.sell_order_id)
+                        self.stop()
+                    return
+                if self.is_exceed_5min:
+                    print(f"⚠️ 價格在 5 分鐘內變動超過 5%：{round(change_pct*100, 2)}%，重新掛單")
+                    # ✅ 取消原本掛單
+                    self.cancel_order(self.buy_order_id)
+                    self.cancel_order(self.sell_order_id)
+                    # ✅ 重新掛單
+                    self.place_initial_orders()
+                    self.last_price_5min_ago=None
+                else:
+                    print(f"✅ 價格變動在正常範圍內（{round(change_pct*100, 2)}%）")
+            self.last_price_5min_ago = current
+            print(f"⏱️ 更新 5 分鐘前價格為：{self.last_price_5min_ago}")
+
+            # 每 5 分鐘再次更新
+            self.price_timer = threading.Timer(300, update_price)
+            self.price_timer.start()
+
+        # 第一次立即執行一次
+        update_price()
+
 
 '''
 Orders: {'data': [{

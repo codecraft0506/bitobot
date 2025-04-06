@@ -12,7 +12,7 @@ from django.contrib.auth.decorators import login_required
 
 from .bito import get_balance
 from .ws import TradeWSManager, EMAIL
-from .models import Trade
+from .models import Trade,SpotTrade
 
 # 設定 logger
 logger = logging.getLogger(__name__)
@@ -319,3 +319,18 @@ def get_pair_profit(pair):
             print('異常 : 出現未匹配的賣出單據')
         
     return profit
+@csrf_exempt
+def get_completed_buys(request):
+    completed_buys = Trade.objects.filter(action='BUY', trade_or_not=True).order_by('-trade_date')
+    
+    data = [
+        {
+            "pair": trade.pair,
+            "price": float(trade.price),
+            "quantity": float(trade.quantity),
+            "trade_date": trade.trade_date.strftime("%Y-%m-%d %H:%M:%S")
+        }
+        for trade in completed_buys
+    ]
+    
+    return JsonResponse({"status": "success", "data": data})

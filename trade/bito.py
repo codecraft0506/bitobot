@@ -19,6 +19,7 @@ BASE_URL = "https://api.bitopro.com/v3"
 
 def get_headers(params):
     """產生 BitoPro API 驗證標頭"""
+
     payload = base64.urlsafe_b64encode(json.dumps(params).encode('utf-8')).decode('utf-8')
     signature = hmac.new(
         bytes(API_SECRET, 'utf-8'),
