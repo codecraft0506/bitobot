@@ -333,4 +333,11 @@ def get_completed_buys(request):
         for trade in completed_buys
     ]
     
-    return JsonResponse({"status": "success", "data": data})
+    return return JsonResponse({
+        "response": {
+            "status": "success",
+            "message": "資料取得成功",
+            "data": data
+        },
+        "code": "200"
+    })
