@@ -83,11 +83,9 @@ class TradeWSManager:
                 print('訂單交易中')
             if order_data.get('status') == 2:
                 if order_data.get('id') == self.sell_order_id:
-                    print("賣單完全成交，取消買單")
-                    self.cancel_order(self.buy_order_id)
+                    print("賣單完全成交")
                 elif order_data.get('id') == self.buy_order_id:
-                    print("買單完全成交，取消賣單")
-                    self.cancel_order(self.sell_order_id)
+                    print("買單完全成交")
                 if self.price_timer is not None:
                     self.price_timer.cancel()
                     self.price_timer_started = False
