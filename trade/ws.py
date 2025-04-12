@@ -45,18 +45,24 @@ class TradeWSManager:
             self.thread = None
             self.sell_order_id = None  # 賣單 ID
             self.buy_order_id = None   # 買單 ID
+            self.sell_orders = []
+            self.buy_orders = []
             self.user = None 
             self.precision = None
             self.last_price_5min_ago = None
             self.is_exceed_5min=None
             self.target_after_exceed = None
-            self.price_timer_started = False
             self.price_timer = None
             self.log_messages = []
             # 用來判斷 WS 是否連線成功
             self.connected_event = threading.Event()
             self.manual_close = False
             self._initialized = True
+            self.trade_count = None
+            self.origin_price = None
+            self.last_trade_price = None
+            self.price_cancel_cv = None
+            self.price_reset_cv = None
             print('WSM 初始化成功')
 
     def log_print(self, message):
@@ -71,7 +77,6 @@ class TradeWSManager:
 
     def on_message(self, ws, message):
         """監聽 WebSocket 訂單狀態變化"""
-        if self.canceling : return
         response = json.loads(message)
         print("📊 訂單更新:")
 
@@ -82,14 +87,20 @@ class TradeWSManager:
             if order_data.get('status') == 0:
                 print('訂單交易中')
             if order_data.get('status') == 2:
-                if order_data.get('id') == self.sell_order_id:
-                    print("賣單完全成交")
-                elif order_data.get('id') == self.buy_order_id:
-                    print("買單完全成交")
-                if self.price_timer is not None:
-                    self.price_timer.cancel()
-                    self.price_timer_started = False
-                    print("🛑 已停止價格更新計時器")
+                id = order_data.get('id')
+                if id in self.sell_orders:
+                    self.place_order("BUY", self.last_trade_price)
+                    self.place_order("SELL", self.last_trade_price + self.origin_price * self.price_increase_percentage * (len(self.sell_orders) + 1))
+                    self.sell_orders.remove(id)
+                    self.last_trade_price = float(order_data.get('price'))
+                    print("賣單成交")
+                elif id in self.buy_orders:
+                    self.place_order("BUY", self.last_trade_price - self.origin_price * self.price_decrease_percentage * (len(self.buy_orders) + 1))
+                    self.place_order("SELL", self.last_trade_price)
+                    self.buy_orders.remove(id)
+                    self.last_trade_price = float(order_data.get('price'))
+                    print("買單成交")
+
     def on_error(self, ws, error):
         err_msg = f"WebSocket 錯誤: {error}"
         self.error_message.append(err_msg)
@@ -116,14 +127,10 @@ class TradeWSManager:
         print("✅ WebSocket 連線成功，開始監聽訂單狀態")
         self.connected_event.set()  # 標記 WS 連線成功
         self.place_initial_orders()
-        if not self.sell_order_id and not self.buy_order_id:
-            error_msg = "初始掛單全部失敗，請檢查 API 金鑰或網路連線"
-            self.error_message.append(error_msg)
-            print(f"❌ {error_msg}")
-            self.stop()
+        self.start_price_timer()
         self.wait_start = True
         
-    def start(self, pair, order_size, price_increase_percentage, price_decrease_percentage, user):
+    def start(self, pair, order_size, price_increase_percentage, price_decrease_percentage, user, trade_count, price_reset_cv, price_cancel_cv):
         if self.is_running:
             return "機器人運作中"
         
@@ -141,9 +148,11 @@ class TradeWSManager:
         self.price_decrease_percentage = price_decrease_percentage
         self.start_time = datetime.now().isoformat(timespec='seconds') + "Z"
         self.wait_start = False
-        self.canceling = False
         self.manual_close = False
         self.user = user
+        self.price_reset_cv = price_reset_cv
+        self.price_cancel_cv = price_cancel_cv
+        self.trade_count = trade_count
 
         print("⏳ 嘗試連線中...")
         self.ws_url = "wss://stream.bitopro.com:443/ws/v1/pub/auth/user-trades"
@@ -193,6 +202,7 @@ class TradeWSManager:
         self.price_decrease_percentage = price_decrease_percentage
         self.start_time = datetime.now().isoformat(timespec='seconds') + "Z"
         self.place_initial_orders()
+        self.start_price_timer()
         return "\n".join(self.error_message) if self.error_message else 0
 
     def stop(self):
@@ -204,7 +214,6 @@ class TradeWSManager:
         self.cancel_all_orders()
         if self.price_timer is not None:
             self.price_timer.cancel()
-            self.price_timer_started = False
             print("🛑 已停止價格更新計時器")
         if self.ws:
             self.ws.close()
@@ -297,6 +306,12 @@ class TradeWSManager:
 
         if response.status_code == 200:
             order_id = response.json().get("orderId")
+
+            if action == 'BUY':
+                self.buy_orders.append(order_id)
+            elif action == 'SELL':
+                self.sell_orders.append(order_id)
+
             msg = f"✅ {action} 限價單建立成功: 價格 {str(round(price, self.precision))}, 訂單 ID: {order_id}"
             print(msg)
             self.log_print({'status': True, 'message': msg})       
@@ -308,15 +323,25 @@ class TradeWSManager:
             self.error_message.append(error_msg)
             self.log_print({'status': False, 'message': f"{action} 限價單建立失敗: {error_info}"})
             return None
+    
+
     def place_initial_orders(self):
-        self.start_price_timer()
         current_price = self.get_current_price()
+        self.origin_price = current_price
+        self.last_trade_price = current_price
+
         print(f"📈 當前價格: {current_price}")
-        sell_price = current_price * (1 + self.price_increase_percentage)
-        self.sell_order_id = self.place_order("SELL", sell_price)
-        buy_price = current_price * (1 - self.price_decrease_percentage)
-        self.buy_order_id = self.place_order("BUY",buy_price)
-        if self.sell_order_id is None and self.buy_order_id is None:
+
+        for i in range(1, self.trade_count + 1):
+            sell_price = current_price * (1 + (self.price_increase_percentage * i))
+            self.place_order("SELL", sell_price)
+
+            
+        for i in range(1, self.trade_count + 1):
+            buy_price = current_price * (1 - (self.price_decrease_percentage * i))
+            self.place_order("BUY", buy_price)
+
+        if (len(self.sell_orders) == 0) and (len(self.buy_orders) == 0):
             error_msg = "初始掛單全部失敗，請檢查 API 金鑰或網路連線"
             self.stop()
             self.error_message.append(error_msg)
@@ -325,8 +350,6 @@ class TradeWSManager:
 
 
     def cancel_all_orders(self):
-        self.canceling = True
-        time.sleep(1)
         params = {
             'identity' : EMAIL,
             'nonce' : int(time.time() * 1000),
@@ -336,15 +359,15 @@ class TradeWSManager:
         url = f'{BASE_URL}/orders/all/'
         response = requests.delete(url=url, headers=headers)
         if response.status_code == 200:
-            self.buy_order_id = None
-            self.sell_order_id = None
+            self.buy_orders.clear()
+            self.sell_orders.clear()
             print('訂單全部取消成功')
         else:
             error_info = response.json()
             error_msg = f'訂單取消失敗 : {error_info}'
             self.error_message.append(error_msg)
             print(error_msg)
-        self.canceling = False
+        time.sleep(1) # API 有一秒限制 防呆用
 
     def cancel_order(self, order_id):
         if order_id is None:
@@ -378,32 +401,29 @@ class TradeWSManager:
             },
             pk = data.get('id')
         )
+
     def start_price_timer(self):
-        if getattr(self, 'price_timer_started', False):
-            return  # 已啟動就不再執行
-        self.price_timer_started = True
+        if self.price_timer is not None:
+            self.last_price_5min_ago = None
+            self.price_timer.cancel()
+            self.price_timer = None
+            # 如果計時已存在 則銷毀並重新計時
+        
         def update_price():
             current = self.get_current_price()
-            # 第一次執行時 last_price 可能是 None
+            # 第一次執行時 last_price 以及手動重設時 可能是 None
             if self.last_price_5min_ago is not None:
                 change_pct = abs(current - self.last_price_5min_ago) / self.last_price_5min_ago
-                self.is_exceed_5min = change_pct >= 0.05
-                if(change_pct >=0.1):
+                if (change_pct >= self.price_cancel_cv):
                     print(f"⚠️ 價格在 5 分鐘內變動超過 10%：{round(change_pct*100, 2)}%，取消掛單")
-                    if self.buy_order_id:
-                        self.cancel_order(self.buy_order_id)
-                    if self.sell_order_id:
-                        self.cancel_order(self.sell_order_id)
-                        self.stop()
+                    self.stop()
                     return
-                if self.is_exceed_5min:
+                elif (change_pct >= self.price_reset_cv):
                     print(f"⚠️ 價格在 5 分鐘內變動超過 5%：{round(change_pct*100, 2)}%，重新掛單")
-                    # ✅ 取消原本掛單
-                    self.cancel_order(self.buy_order_id)
-                    self.cancel_order(self.sell_order_id)
-                    # ✅ 重新掛單
+                    # 取消掛單
+                    self.cancel_all_orders()
+                    # 重新掛單
                     self.place_initial_orders()
-                    self.last_price_5min_ago=None
                 else:
                     print(f"✅ 價格變動在正常範圍內（{round(change_pct*100, 2)}%）")
             self.last_price_5min_ago = current
@@ -413,7 +433,6 @@ class TradeWSManager:
             self.price_timer = threading.Timer(300, update_price)
             self.price_timer.start()
 
-        # 第一次立即執行一次
         update_price()
 
 

@@ -15,6 +15,6 @@ urlpatterns = [
     path('update_trade/', update_trade, name='update_trade'),
     path('check_trade/', check_trade, name='check_trade'),
     path('get_fee/', get_fee, name='get_fee'),
-    path('get_profit', get_profit, name='get_profit'),
+    path('get_profit/', get_profit, name='get_profit'),
     path('get_completed_buys/', get_completed_buys, name='get_completed_buys'),
 ]

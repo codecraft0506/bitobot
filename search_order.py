@@ -40,8 +40,44 @@ headers = get_headers(params)
 
 url = f'{BASEURL}/orders/open/'
 
+buy_orders = []
+sell_orders = []
+
 response = requests.get(url=url, headers=headers)
-if response is not None:
-    print("Orders:", response.json())
-else:
-    print("Request failed.")
+
+if response is None:
+    print('Request failed.')
+    exit()
+
+data = response.json()
+
+if (len(data.get('data')) == 0):
+    print('No orders.')
+    exit()
+
+for order in data.get('data'):
+    if order.get('action') == 'BUY':
+        buy_orders.append({
+            'action': 'BUY',
+            'id': order.get('id'),
+            'price': order.get('price')})
+    elif order.get('action') == 'SELL':
+        sell_orders.append({
+            'action': 'SELL',
+            'id': order.get('id'),
+            'price': order.get('price')})
+
+buy_orders.sort(key=lambda x: x['price'], reverse=True)
+sell_orders.sort(key=lambda x: x['price'], reverse=True)
+
+print('===SELLS===')
+
+for so in sell_orders:
+    print(so)
+
+print('===BUYS===')
+
+for bo in buy_orders:
+    print(bo)
+
+

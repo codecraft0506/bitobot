@@ -91,7 +91,7 @@ def start_trade(request):
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
-            return JsonResponse({"success": False, "error": "JSON 格式錯誤"}, status=200)
+            return JsonResponse({"success": False, "error": "JSON 格式錯誤"}, status=400)
         pair = data.get('symbol')
         order_size = data.get('order_size')
         try:
@@ -99,14 +99,30 @@ def start_trade(request):
             down = float(data.get('price_down_percentage')) * 0.01
         except (TypeError, ValueError) as e:
             logger.error(f"start_trade percentage error: {e}")
-            return JsonResponse({"success": False, "error": "價格百分比格式錯誤"}, status=200)
+            return JsonResponse({"success": False, "error": "價格百分比格式錯誤"}, status=400)
+        try:
+            trade_count = int(data.get('trade_count')) # 一次開多單
+        except e:
+            logger.error(f'start_trade trade_count error: {e}')
+            return JsonResponse({"success": False, "error": {e}}, status=400)
+        
+        try:
+            price_reset_cv = float(data.get('price_reset_cv')) * 0.01 # 劇烈波動風控重設值
+            price_cancel_cv = float(data.get('price_cancel_cv')) * 0.01 # 劇烈波動風控取消值
+        except (TypeError, ValueError) as e:
+            logger.error(f"start_trade price_cv error: {e}")
+            return JsonResponse({"success": False, "error": "波動百分比格式錯誤"}, status=400)
+
         try:
             resp = trade_ws_manager.start(
                 pair=pair,
                 order_size=order_size,
                 price_increase_percentage=up,
                 price_decrease_percentage=down,
-                user=request.user
+                user=request.user,
+                trade_count=trade_count,
+                price_reset_cv=price_reset_cv,
+                price_cancel_cv=price_cancel_cv,
             )
             if resp == 0:
                 return JsonResponse({'success': True, 'data': trade_ws_manager.get_manager_state()}, status=200)
@@ -333,7 +349,7 @@ def get_completed_buys(request):
         for trade in completed_buys
     ]
     
-    return return JsonResponse({
+    return JsonResponse({
         "response": {
             "status": "success",
             "message": "資料取得成功",
