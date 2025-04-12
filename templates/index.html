@@ -48,6 +48,15 @@
               <v-list-item-title>餘額</v-list-item-title>
             </v-list-item-content>
           </v-list-item>
+          <!-- 切換分頁：明細 -->
+          <v-list-item link @click="currentTab = 'details'">
+            <v-list-item-icon>
+              <v-icon>mdi-clipboard-list-outline</v-icon>
+            </v-list-item-icon>
+            <v-list-item-content>
+              <v-list-item-title>明細</v-list-item-title>
+            </v-list-item-content>
+          </v-list-item>
         </v-list>
       </v-navigation-drawer>
       
@@ -113,6 +122,24 @@
                   ></v-text-field>
                   <v-text-field
                     label="價格下降百分比"
+                    v-model="trade.price_down_percentage"
+                    required
+                    type="number"
+                  ></v-text-field>
+                  <v-text-field
+                    label="往上開幾單"
+                    v-model="trade.price_down_percentage"
+                    required
+                    type="number"
+                  ></v-text-field>
+                  <v-text-field
+                    label="往下開幾單"
+                    v-model="trade.price_down_percentage"
+                    required
+                    type="number"
+                  ></v-text-field>
+                  <v-text-field
+                    label="風控條件"
                     v-model="trade.price_down_percentage"
                     required
                     type="number"
@@ -205,6 +232,45 @@
               </v-card-text>
             </v-card>
           </div>
+          <!-- 明細查詢 -->
+          <div v-if="currentTab === 'details'">
+            <v-card class="pa-4">
+              <v-card-title>
+                <span>明細查詢</span>
+                <v-spacer></v-spacer>
+                <v-btn color="primary" @click="getBalance">刷新</v-btn>
+              </v-card-title>
+              <v-card-text>
+                <v-data-table
+                  :headers="detailsHeaders"
+                  :items="detailsData"
+                  :sort-by="['amount']"
+                  :sort-desc="[true]"
+                  class="elevation-1"
+                  dense
+                >
+                  <template v-slot:item.amount="{ item }">
+                    [[ formatNumber(item.amount) ]]
+                  </template>
+                  <template v-slot:item.available="{ item }">
+                    [[ formatNumber(item.available) ]]
+                  </template>
+                  <template v-slot:item.stake="{ item }">
+                    [[ formatNumber(item.stake) ]]
+                  </template>
+                  <template v-slot:item.enable="{ item }">
+                    [[ item.enable ? '是' : '否' ]]
+                  </template>
+                  <template v-slot:item.tradable="{ item }">
+                    [[ item.tradable ? '可交易' : '不可交易' ]]
+                  </template>
+                </v-data-table>
+                <div v-if="!balanceData || balanceData.length === 0" class="mt-3">
+                  <p>目前沒有餘額資料</p>
+                </div>
+              </v-card-text>
+            </v-card>
+          </div>
         </v-container>
       </v-main>
     </v-app>
@@ -243,7 +309,16 @@
           { text: '是否啟用', value: 'enable' },
           { text: '是否可交易', value: 'tradable' }
         ],
-        pairs: []
+        pairs: [],
+        detailsData:[],
+        detailsHeaders: [
+          { text: '幣別', value: 'currency' },
+          { text: '交易方式', value: 'trade_type' },
+          { text: '成交價', value: 'price' },
+          { text: '成交量', value: 'volume' },
+          { text: '手續費', value: 'fee' },
+          { text: '是否成交', value: 'is_completed' }   
+        ]
       },
       methods: {
         // 新增自動隱藏訊息的函式，timeout 以毫秒計，預設 5000 毫秒 (5 秒)
