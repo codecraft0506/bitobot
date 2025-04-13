@@ -15,5 +15,5 @@ urlpatterns = [
     path('update_trade/', update_trade, name='update_trade'),
     path('check_trade/', check_trade, name='check_trade'),
     path('get_trades/', get_trades, name='get_trades'),
-    path('get_spots', get_spots, name='get_spots'),
+    path('get_spots/', get_spots, name='get_spots'),
 ]
