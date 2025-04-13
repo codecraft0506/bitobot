@@ -12,7 +12,7 @@ from django.contrib.auth.decorators import login_required
 
 from .bito import get_balance
 from .ws import TradeWSManager, EMAIL
-from .models import Trade,SpotTrade
+from .models import Trade, SpotTrade
 from itertools import islice
 
 # 設定 logger
@@ -167,10 +167,25 @@ def update_trade(request):
             logger.error(f"update_trade percentage error: {e}")
             return JsonResponse({"success": False, "error": "價格百分比格式錯誤"}, status=200)
         try:
+            trade_count = int(data.get('trade_count')) # 一次開多單
+        except e:
+            logger.error(f'start_trade trade_count error: {e}')
+            return JsonResponse({"success": False, "error": {e}}, status=400)
+        
+        try:
+            price_reset_cv = float(data.get('price_reset_cv')) * 0.01 # 劇烈波動風控重設值
+            price_cancel_cv = float(data.get('price_cancel_cv')) * 0.01 # 劇烈波動風控取消值
+        except (TypeError, ValueError) as e:
+            logger.error(f"start_trade price_cv error: {e}")
+            return JsonResponse({"success": False, "error": "波動百分比格式錯誤"}, status=400)
+        try:
             resp = trade_ws_manager.update(
                 order_size=order_size,
                 price_increase_percentage=up,
-                price_decrease_percentage=down
+                price_decrease_percentage=down,
+                trade_count=trade_count,
+                price_reset_cv=price_reset_cv,
+                price_cancel_cv=price_cancel_cv,
             )
             if resp == 0:
                 return JsonResponse({'success': True, 'data': trade_ws_manager.get_manager_state()}, status=200)
@@ -196,6 +211,113 @@ def check_trade(request):
             return JsonResponse({"success": False, "error": "Internal Server Error"}, status=200)
     else:
         return JsonResponse({"success": False, "error": "只接受 GET 方法"}, status=200)
+
+@csrf_exempt
+@json_login_required
+def get_trades(request):
+    if request.method == 'GET':
+        try:
+            result = []
+            url = 'https://api.bitopro.com/v3/provisioning/trading-pairs'
+            response = requests.get(url)
+            datas = response.json().get('data')
+            for data in datas:
+                pair = data.get('pair')
+                result.extend(get_trades_by_pair(pair))
+            result.sort(key=lambda x : x['trade_date'], reverse=True)
+
+            return JsonResponse(
+                {
+                    "response":{
+                        "status" : "success", 
+                        "message" : f"get trades",
+                        "data" : result
+                    },
+                    "code" : "400"
+                }
+            )
+        except Exception as e:
+            logger.exception("Internal Server Error in get_trades")
+            return JsonResponse(
+                {
+                    "response":{
+                        "status" : "error", 
+                        "message" : f"error message from get_trades : {e}",
+                        "data" : {}
+                    },
+                    "code" : "400"
+                }
+            )
+    else:
+        return JsonResponse(
+            {
+                "response":{
+                    "status" : "error", 
+                    "message" : "只接受 GET 方法",
+                    "data" : {}
+                },
+                "code" : "400"
+            }
+        )
+    
+def get_trades_by_pair(pair):
+    buy_trades = Trade.objects.filter(user_email=EMAIL, pair=pair, action = 'BUY').order_by('trade_date')
+    sell_trades = Trade.objects.filter(user_email=EMAIL, pair=pair, action = 'SELL').order_by('trade_date')
+
+    result = [
+                {
+                    "id" : trade.id,
+                    "pair" : trade.pair,
+                    "action" : trade.action, 
+                    "price" : float(trade.price),
+                    "fee" : float(trade.fee),
+                    "quantity" : float(trade.quantity),
+                    "trade_date" : trade.trade_date.strftime("%Y-%m-%d %H:%M:%S")
+                } for trade in buy_trades
+            ]
+
+
+    buy_index = 0
+    buy_qty = Decimal('0')
+    buy_price = Decimal('0')
+
+    for sell in sell_trades:
+        sell_qty = sell.quantity
+        sell_price = sell.price
+        profit = Decimal('0')
+        print(f'SELL: {sell_qty} @ {sell_price}')
+
+        while (sell_qty > 0 and (buy_index < len(buy_trades) or buy_qty > 0)):
+
+            if buy_qty <= 0:
+                buy = buy_trades[buy_index]
+                buy_qty = buy.quantity
+                buy_price = buy.price
+                buy_index += 1
+                continue
+            
+            matched_qty = min(sell_qty, buy_qty)
+            profit += matched_qty * (sell_price - buy_price)
+            sell_qty -= matched_qty
+            buy_qty -= matched_qty
+
+        result.append(
+            {
+                "id" : sell.id,
+                "pair" : sell.pair,
+                "action" : sell.action, 
+                "price" : float(sell.price),
+                "fee" : float(sell.fee),
+                "quantity" : float(sell.quantity),
+                "trade_date" : sell.trade_date.strftime("%Y-%m-%d %H:%M:%S"),
+                "profit" : profit
+            }
+        )
+
+        if sell_qty > 0:
+            print('異常 : 出現未匹配的賣出單據')
+        
+    return result
     
 @csrf_exempt
 @json_login_required
@@ -336,41 +458,101 @@ def get_pair_profit(pair):
             print('異常 : 出現未匹配的賣出單據')
         
     return profit
+
 @csrf_exempt
-def get_holdings_by_pair(request):
+@json_login_required
+def get_spots(request):
+    if request.method == 'GET':
+        try:
+            result = []
+            url = 'https://api.bitopro.com/v3/provisioning/trading-pairs'
+            response = requests.get(url)
+            datas = response.json().get('data')
+            for data in datas:
+                pair = data.get('pair')
+                result.extend(get_spots_by_pair(pair))
+            result.sort(key=lambda x : x['trade_date'], reverse=True)
+
+            return JsonResponse(
+                {
+                    "response":{
+                        "status" : "success", 
+                        "message" : f"get trades",
+                        "data" : result
+                    },
+                    "code" : "400"
+                }
+            )
+        except Exception as e:
+            logger.exception("Internal Server Error in get_spots")
+            return JsonResponse(
+            {
+                "response":{
+                    "status" : "error", 
+                    "message" : f"error message from get_spots : {e}",
+                    "data" : {}
+                },
+                "code" : "400"
+            }
+        )
+    else:
+        return JsonResponse(
+            {
+                "response":{
+                    "status" : "error", 
+                    "message" : "只接受 GET 方法",
+                    "data" : {}
+                },
+                "code" : "400"
+            }
+        )
+
+def get_spots_by_pair(pair):
     buy_trades = Trade.objects.filter(
         user_email=EMAIL,
-        pair="usdt_twd",
         action='BUY',
+        pair=pair,
         trade_or_not=True
-    ).order_by('trade_date')
+    ).order_by('pair').order_by('trade_date')
 
     sell_trades = Trade.objects.filter(
         user_email=EMAIL,
-        pair="usdt_twd",
         action='SELL',
+        pair=pair,
         trade_or_not=True
-    ).order_by('trade_date')
+    ).order_by('pair').order_by('trade_date')
 
-    # FIFO 扣掉賣出過的買單
-    remaining_buys = list(islice(buy_trades, 0, max(len(buy_trades) - len(sell_trades), 0)))
+    # 計算總買入量與總賣出量
+    total_buy_qty = sum(b.quantity for b in buy_trades)
+    total_sell_qty = sum(s.quantity for s in sell_trades)
 
-    data = [
-        {
-            "id": trade.id,
-            "pair": trade.pair,
-            "price": float(trade.price),
-            "quantity": float(trade.quantity),
-            "trade_date": trade.trade_date.strftime("%Y-%m-%d %H:%M:%S")
-        }
-        for trade in remaining_buys
-    ]
+    remaining_qty = total_buy_qty - total_sell_qty
 
-    return JsonResponse({
-        "response": {
-            "status": "success",
-            "message": "現貨倉位取得成功",
-            "data": data
-        },
-        "code": "200"
-    })
+    result = []
+    qty_needed = remaining_qty
+    buy_trades = reversed(buy_trades)
+
+    for trade in buy_trades:
+        if qty_needed <= 0:
+            break
+        
+        if trade.quantity <= qty_needed:
+            result.append({
+                "id": trade.id,
+                "pair": trade.pair,
+                "price": float(trade.price),
+                "quantity": float(trade.quantity),
+                "trade_date": trade.trade_date.strftime("%Y-%m-%d %H:%M:%S")
+            })
+            qty_needed -= trade.quantity
+        else:
+            result.append({
+                "id": trade.id,
+                "pair": trade.pair,
+                "price": float(trade.price),
+                "quantity": float(qty_needed),  # ⚠️ 僅回傳剩下那一點點
+                "trade_date": trade.trade_date.strftime("%Y-%m-%d %H:%M:%S")
+            })
+            qty_needed = Decimal('0.0')
+
+    return result
