@@ -127,20 +127,20 @@
                     type="number"
                   ></v-text-field>
                   <v-text-field
-                    label="往上開幾單"
-                    v-model="trade.price_down_percentage"
+                    label="總開單數 (向上 + 向下)"
+                    v-model="trade.trade_count"
                     required
                     type="number"
                   ></v-text-field>
                   <v-text-field
-                    label="往下開幾單"
-                    v-model="trade.price_down_percentage"
+                    label="風控重設值 (%)"
+                    v-model="trade.price_reset_cv"
                     required
                     type="number"
                   ></v-text-field>
                   <v-text-field
-                    label="風控條件"
-                    v-model="trade.price_down_percentage"
+                    label="風控中斷值 (%)"
+                    v-model="trade.price_cancel_cv"
                     required
                     type="number"
                   ></v-text-field>
@@ -176,6 +176,18 @@
                         <tr>
                           <td><strong>價格下降百分比</strong></td>
                           <td>[[ tradeStatus.price_down_percentage ]]%</td>
+                        </tr>
+                        <tr>
+                          <td><strong>總開單數(向上+向下)</strong></td>
+                          <td>[[ tradeStatus.trade_count ]]</td>
+                        </tr>
+                        <tr>
+                          <td><strong>風控重設值 (%)</strong></td>
+                          <td>[[ tradeStatus.price_reset_cv ]]%</td>
+                        </tr>
+                        <tr>
+                          <td><strong>風控中斷值 (%)</strong></td>
+                          <td>[[ tradeStatus.price_cancel_cv ]]%</td>
                         </tr>
                         <tr>
                           <td><strong>啟動時間</strong></td>
@@ -297,7 +309,10 @@
           symbol: '',
           order_size: 1,
           price_up_percentage: 1,
-          price_down_percentage: 1
+          price_down_percentage: 1,
+          trade_count: 1,
+          price_reset_cv: 1,
+          price_cancel_cv: 1
         },
         tradeStatus: null,
         balanceData: [],
@@ -392,7 +407,9 @@
         },
         startTrade() {
           this.loading = true;
-          axios.post('/start_trade/', this.trade)
+          axios.post('/start_trade/', {
+            ...this.trade, // 傳遞所有 trade 相關參數
+          })
             .then(response => {
               if (response.data.success) {
                 this.addAutoDismissMessage('success', '交易開始成功');
