@@ -192,7 +192,7 @@ class TradeWSManager:
 
         return 0  # 成功時返回 0
 
-    def update(self, order_size, price_increase_percentage, price_decrease_percentage):
+    def update(self, order_size, price_increase_percentage, price_decrease_percentage, trade_count, price_reset_cv, price_cancel_cv):
         if not self.is_running:
             return '機器人未運行'
         self.error_message = []  # 清空錯誤訊息列表
@@ -200,6 +200,9 @@ class TradeWSManager:
         self.order_size = order_size
         self.price_increase_percentage = price_increase_percentage
         self.price_decrease_percentage = price_decrease_percentage
+        self.trade_count = trade_count
+        self.price_reset_cv = price_reset_cv
+        self.price_cancel_cv = price_cancel_cv
         self.start_time = datetime.now().isoformat(timespec='seconds') + "Z"
         self.place_initial_orders()
         self.start_price_timer()
@@ -255,7 +258,10 @@ class TradeWSManager:
             "order_size": self.order_size,
             "price_up_percentage": self.price_increase_percentage * 100,
             "price_down_percentage": self.price_decrease_percentage * 100,
-            "start_time": self.start_time
+            "start_time": self.start_time,
+            "trade_count": self.trade_count,
+            "price_reset_cv": self.price_reset_cv,
+            "price_cancel_cv" : self.price_cancel_cv
         }
     
     def get_order_data(self, order_id):
