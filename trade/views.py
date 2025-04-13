@@ -13,6 +13,7 @@ from django.contrib.auth.decorators import login_required
 from .bito import get_balance
 from .ws import TradeWSManager, EMAIL
 from .models import Trade,SpotTrade
+from itertools import islice
 
 # 設定 logger
 logger = logging.getLogger(__name__)
@@ -336,23 +337,39 @@ def get_pair_profit(pair):
         
     return profit
 @csrf_exempt
-def get_completed_buys(request):
-    completed_buys = Trade.objects.filter(action='BUY', trade_or_not=True).order_by('-trade_date')
-    
+def get_holdings_by_pair(request):
+    buy_trades = Trade.objects.filter(
+        user_email=EMAIL,
+        pair="usdt_twd",
+        action='BUY',
+        trade_or_not=True
+    ).order_by('trade_date')
+
+    sell_trades = Trade.objects.filter(
+        user_email=EMAIL,
+        pair="usdt_twd",
+        action='SELL',
+        trade_or_not=True
+    ).order_by('trade_date')
+
+    # FIFO 扣掉賣出過的買單
+    remaining_buys = list(islice(buy_trades, 0, max(len(buy_trades) - len(sell_trades), 0)))
+
     data = [
         {
+            "id": trade.id,
             "pair": trade.pair,
             "price": float(trade.price),
             "quantity": float(trade.quantity),
             "trade_date": trade.trade_date.strftime("%Y-%m-%d %H:%M:%S")
         }
-        for trade in completed_buys
+        for trade in remaining_buys
     ]
-    
+
     return JsonResponse({
         "response": {
             "status": "success",
-            "message": "資料取得成功",
+            "message": "現貨倉位取得成功",
             "data": data
         },
         "code": "200"

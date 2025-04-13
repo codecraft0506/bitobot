@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (
     home, login_view, get_pairs, balance,
     start_trade, stop_trade, update_trade, check_trade,
-    get_fee, get_profit,get_completed_buys
+    get_fee, get_profit,get_holdings_by_pair,
 )
 
 urlpatterns = [
@@ -16,5 +16,5 @@ urlpatterns = [
     path('check_trade/', check_trade, name='check_trade'),
     path('get_fee/', get_fee, name='get_fee'),
     path('get_profit/', get_profit, name='get_profit'),
-    path('get_completed_buys/', get_completed_buys, name='get_completed_buys'),
+    path('get_holdings_by_pair/', get_holdings_by_pair, name='get_holdings_by_pair'),
 ]
