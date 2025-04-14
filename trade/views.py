@@ -9,6 +9,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required
+from django.utils import timezone
 
 from .bito import get_balance
 from .ws import TradeWSManager, EMAIL
@@ -110,6 +111,8 @@ def start_trade(request):
         try:
             price_reset_cv = float(data.get('price_reset_cv')) * 0.01 # 劇烈波動風控重設值
             price_cancel_cv = float(data.get('price_cancel_cv')) * 0.01 # 劇烈波動風控取消值
+            if price_reset_cv >= price_cancel_cv:
+                return JsonResponse({"success": False, "error" : "風控中斷值必須大於風控重設值!"}, status=400)
         except (TypeError, ValueError) as e:
             logger.error(f"start_trade price_cv error: {e}")
             return JsonResponse({"success": False, "error": "波動百分比格式錯誤"}, status=400)
@@ -158,14 +161,14 @@ def update_trade(request):
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
-            return JsonResponse({"success": False, "error": "JSON 格式錯誤"}, status=200)
+            return JsonResponse({"success": False, "error": "JSON 格式錯誤"}, status=400)
         order_size = data.get('order_size')
         try:
             up = float(data.get('price_up_percentage')) * 0.01
             down = float(data.get('price_down_percentage')) * 0.01
         except (TypeError, ValueError) as e:
             logger.error(f"update_trade percentage error: {e}")
-            return JsonResponse({"success": False, "error": "價格百分比格式錯誤"}, status=200)
+            return JsonResponse({"success": False, "error": "價格百分比格式錯誤"}, status=400)
         try:
             trade_count = int(data.get('trade_count')) # 一次開多單
         except e:
@@ -175,6 +178,8 @@ def update_trade(request):
         try:
             price_reset_cv = float(data.get('price_reset_cv')) * 0.01 # 劇烈波動風控重設值
             price_cancel_cv = float(data.get('price_cancel_cv')) * 0.01 # 劇烈波動風控取消值
+            if price_reset_cv >= price_cancel_cv:
+                return JsonResponse({"success": False, "error" : "風控中斷值必須大於風控重設值!"}, status=400)
         except (TypeError, ValueError) as e:
             logger.error(f"start_trade price_cv error: {e}")
             return JsonResponse({"success": False, "error": "波動百分比格式錯誤"}, status=400)
@@ -190,12 +195,12 @@ def update_trade(request):
             if resp == 0:
                 return JsonResponse({'success': True, 'data': trade_ws_manager.get_manager_state()}, status=200)
             else:
-                return JsonResponse({'success': False, 'error': resp}, status=200)
+                return JsonResponse({'success': False, 'error': resp}, status=400)
         except Exception as e:
             logger.exception("Internal Server Error in update_trade")
-            return JsonResponse({"success": False, "error": "Internal Server Error"}, status=200)
+            return JsonResponse({"success": False, "error": "Internal Server Error"}, status=400)
     else:
-        return JsonResponse({"success": False, "error": "只接受 POST 方法"}, status=200)
+        return JsonResponse({"success": False, "error": "只接受 POST 方法"}, status=400)
 
 @csrf_exempt
 @json_login_required
@@ -272,7 +277,7 @@ def get_trades_by_pair(pair):
                     "price" : float(trade.price),
                     "fee" : float(trade.fee),
                     "quantity" : float(trade.quantity),
-                    "trade_date" : trade.trade_date.strftime("%Y-%m-%d %H:%M:%S")
+                    "trade_date" : timezone.localtime(trade.trade_date).strftime("%Y-%m-%d %H:%M:%S")
                 } for trade in buy_trades
             ]
 
@@ -285,7 +290,6 @@ def get_trades_by_pair(pair):
         sell_qty = sell.quantity
         sell_price = sell.price
         profit = Decimal('0')
-        print(f'SELL: {sell_qty} @ {sell_price}')
 
         while (sell_qty > 0 and (buy_index < len(buy_trades) or buy_qty > 0)):
 
@@ -298,6 +302,8 @@ def get_trades_by_pair(pair):
             
             matched_qty = min(sell_qty, buy_qty)
             profit += matched_qty * (sell_price - buy_price)
+            profit -= sell.fee
+            profit -= buy.fee * (matched_qty / buy_qty)
             sell_qty -= matched_qty
             buy_qty -= matched_qty
 
@@ -309,7 +315,7 @@ def get_trades_by_pair(pair):
                 "price" : float(sell.price),
                 "fee" : float(sell.fee),
                 "quantity" : float(sell.quantity),
-                "trade_date" : sell.trade_date.strftime("%Y-%m-%d %H:%M:%S"),
+                "trade_date" : timezone.localtime(sell.trade_date).strftime("%Y-%m-%d %H:%M:%S"),
                 "profit" : profit
             }
         )
@@ -542,7 +548,7 @@ def get_spots_by_pair(pair):
                 "pair": trade.pair,
                 "price": float(trade.price),
                 "quantity": float(trade.quantity),
-                "trade_date": trade.trade_date.strftime("%Y-%m-%d %H:%M:%S")
+                "trade_date": timezone.localtime(trade.trade_date).strftime("%Y-%m-%d %H:%M:%S")
             })
             qty_needed -= trade.quantity
         else:
@@ -551,7 +557,7 @@ def get_spots_by_pair(pair):
                 "pair": trade.pair,
                 "price": float(trade.price),
                 "quantity": float(qty_needed),  # ⚠️ 僅回傳剩下那一點點
-                "trade_date": trade.trade_date.strftime("%Y-%m-%d %H:%M:%S")
+                "trade_date": timezone.localtime(trade.trade_date).strftime("%Y-%m-%d %H:%M:%S")
             })
             qty_needed = Decimal('0.0')
 
