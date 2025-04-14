@@ -12,6 +12,8 @@ from decimal import Decimal
 from datetime import datetime
 from dotenv import load_dotenv
 from .models import Trade,SpotTrade
+from telegram import Bot
+import asyncio
 
 load_dotenv()
 
@@ -212,7 +214,7 @@ class TradeWSManager:
         if not self.is_running:
             return '機器人未運行'
         print("⏳ 停止交易機器人中...")
-        self.error_message = [] # 清空錯誤訊息列表
+        self.error_message = []  # 清空錯誤訊息列表
         self.manual_close = True
         self.cancel_all_orders()
         if self.price_timer is not None:
@@ -228,6 +230,10 @@ class TradeWSManager:
                 print(f"❌ WebSocket 錯誤: {e}")
         self.is_running = False
         print("🔴 機器人已停止")
+
+        # 發送 Telegram 通知
+        asyncio.run(self.send_telegram_notification("🔴 交易機器人已停止運行"))
+
         return "\n".join(self.error_message) if self.error_message else 0
       
     def reconnect(self, attempt):
@@ -441,6 +447,21 @@ class TradeWSManager:
 
         update_price()
 
+    async def send_telegram_notification(self, message):
+        """發送 Telegram 通知 (適配 22.0 版本)"""
+        bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+        chat_id = os.getenv('TELEGRAM_CHAT_ID')
+
+        if not bot_token or not chat_id:
+            print("❌ Telegram 配置缺失，無法發送通知")
+            return
+
+        try:
+            bot = Bot(token=bot_token)
+            await bot.send_message(chat_id=chat_id, text=message)
+            print(f"✅ 已發送 Telegram 通知: {message}")
+        except Exception as e:
+            print(f"❌ 發送 Telegram 通知失敗: {e}")
 
 '''
 Orders: {'data': [{
