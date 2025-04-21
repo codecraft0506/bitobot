@@ -74,8 +74,8 @@ class TradeWSManager:
 
         if ('data' in response and 'orderID' in response['data']):
             order_data = self.get_order_data(response['data']['orderID'])
-            self.save_order(order_data)
             self.history_print(order_data)
+            self.save_order(order_data)
             if order_data.get('status') == 0:
                 self.history_print('訂單交易中')
             if order_data.get('status') == 2:
