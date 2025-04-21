@@ -409,15 +409,35 @@ class TradeWSManager:
             self.history_print(error_msg)
 
     def save_order(self, data):
+        try:
+            quantity = Decimal(data.get('executedAmount'))
+        except Exception as e:
+            quantity = Decimal(0)
+            print(f"executedAmount Decimal 轉換錯誤: {data.get('executedAmount')}")
+
+        try:
+            price = Decimal(data.get('avgExecutionPrice'))
+        except Exception as e:
+            price = Decimal(0)
+            print(f"avgExecutionPrice Decimal 轉換錯誤: {data.get('avgExecutionPrice')}")
+
+        try:
+            fee = Decimal(data.get('fee'))
+        except Exception as e:
+            fee = Decimal(0)
+            print(f"fee Decimal 轉換錯誤: {data.get('fee')}")
+
+
+
         Trade.objects.update_or_create(
             defaults={
                 'user_email': EMAIL,
                 'id': data.get('id'),
                 'pair': data.get('pair'),
                 'action': data.get('action'),
-                'quantity': Decimal(data.get('executedAmount')),
-                'price': Decimal(data.get('avgExecutionPrice')),
-                'fee': Decimal(data.get('fee')),
+                'quantity': quantity,
+                'price': price,
+                'fee': fee,
                 'fee_symbol': data.get('feeSymbol'),
                 'trade_date': data.get('updatedTimestamp'),
                 'trade_or_not' : True if int(data.get('status')) == 2 else False 
