@@ -413,19 +413,19 @@ class TradeWSManager:
             quantity = Decimal(data.get('executedAmount'))
         except Exception as e:
             quantity = Decimal(0)
-            print(f"executedAmount Decimal 轉換錯誤: {data.get('executedAmount')}")
+            self.history_print(f"executedAmount Decimal 轉換錯誤: {data.get('executedAmount')}")
 
         try:
             price = Decimal(data.get('avgExecutionPrice'))
         except Exception as e:
             price = Decimal(0)
-            print(f"avgExecutionPrice Decimal 轉換錯誤: {data.get('avgExecutionPrice')}")
+            self.historyprint(f"avgExecutionPrice Decimal 轉換錯誤: {data.get('avgExecutionPrice')}")
 
         try:
             fee = Decimal(data.get('fee'))
         except Exception as e:
             fee = Decimal(0)
-            print(f"fee Decimal 轉換錯誤: {data.get('fee')}")
+            self.historyprint(f"fee Decimal 轉換錯誤: {data.get('fee')}")
 
 
 
