@@ -218,12 +218,6 @@
                   class="elevation-1"
                   dense
                 >
-                  <template v-slot:item.price="{ item }">
-                    [[ formatNumber(item.price) ]]
-                  </template>
-                  <template v-slot:item.quantity="{ item }">
-                    [[ formatNumber(item.quantity) ]]
-                  </template>
                   <template v-slot:item.trade_date="{ item }">
                     [[ item.trade_date ]]
                   </template>
@@ -252,15 +246,6 @@
                   class="elevation-1"
                   dense
                 >
-                  <template v-slot:item.amount="{ item }">
-                    [[ formatNumber(item.amount) ]]
-                  </template>
-                  <template v-slot:item.available="{ item }">
-                    [[ formatNumber(item.available) ]]
-                  </template>
-                  <template v-slot:item.stake="{ item }">
-                    [[ formatNumber(item.stake) ]]
-                  </template>
                   <template v-slot:item.enable="{ item }">
                     [[ item.enable ? '是' : '否' ]]
                   </template>
@@ -289,12 +274,6 @@
                   class="elevation-1"
                   dense
                 >
-                  <template v-slot:item.price="{ item }">
-                    [[ formatNumber(item.price) ]]
-                  </template>
-                  <template v-slot:item.quantity="{ item }">
-                    [[ formatNumber(item.quantity) ]]
-                  </template>
                   <template v-slot:item.trade_date="{ item }">
                     [[ item.trade_date ]]
                   </template>
