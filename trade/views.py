@@ -274,9 +274,9 @@ def get_trades_by_pair(pair):
                     "id" : trade.id,
                     "pair" : trade.pair,
                     "action" : trade.action, 
-                    "price" : float(trade.price),
-                    "fee" : float(trade.fee),
-                    "quantity" : float(trade.quantity),
+                    "price" : Decimal(trade.price),
+                    "fee" : Decimal(trade.fee),
+                    "quantity" : Decimal(trade.quantity),
                     "trade_date" : timezone.localtime(trade.trade_date).strftime("%Y-%m-%d %H:%M:%S")
                 } for trade in buy_trades
             ]
@@ -312,9 +312,9 @@ def get_trades_by_pair(pair):
                 "id" : sell.id,
                 "pair" : sell.pair,
                 "action" : sell.action, 
-                "price" : float(sell.price),
-                "fee" : float(sell.fee),
-                "quantity" : float(sell.quantity),
+                "price" : Decimal(sell.price),
+                "fee" : Decimal(sell.fee),
+                "quantity" : Decimal(sell.quantity),
                 "trade_date" : timezone.localtime(sell.trade_date).strftime("%Y-%m-%d %H:%M:%S"),
                 "profit" : profit
             }
@@ -546,8 +546,8 @@ def get_spots_by_pair(pair):
             result.append({
                 "id": trade.id,
                 "pair": trade.pair,
-                "price": float(trade.price),
-                "quantity": float(trade.quantity),
+                "price": Decimal(trade.price),
+                "quantity": Decimal(trade.quantity),
                 "trade_date": timezone.localtime(trade.trade_date).strftime("%Y-%m-%d %H:%M:%S")
             })
             qty_needed -= trade.quantity
@@ -555,8 +555,8 @@ def get_spots_by_pair(pair):
             result.append({
                 "id": trade.id,
                 "pair": trade.pair,
-                "price": float(trade.price),
-                "quantity": float(qty_needed),  # ⚠️ 僅回傳剩下那一點點
+                "price": Decimal(trade.price),
+                "quantity": Decimal(qty_needed),  # ⚠️ 僅回傳剩下那一點點
                 "trade_date": timezone.localtime(trade.trade_date).strftime("%Y-%m-%d %H:%M:%S")
             })
             qty_needed = Decimal('0.0')
