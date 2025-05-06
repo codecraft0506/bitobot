@@ -14,7 +14,7 @@ class Trade(models.Model):
     quantity = models.DecimalField(max_digits=20, decimal_places=10)
     price = models.DecimalField(max_digits=20, decimal_places=10)
     fee = models.DecimalField(max_digits=20, decimal_places=10)
-    fee_symbol = models.CharField(max_length=10, default='twd')
+    fee_symbol = models.CharField(max_length=10, null=True)
     trade_date = models.DateTimeField(auto_now_add=True)
     trade_or_not = models.BooleanField(default=False)
 

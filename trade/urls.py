@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (
     home, login_view, get_pairs, balance,
     start_trade, stop_trade, update_trade, check_trade,
-    get_fee, get_profit, get_trades, get_spots,
+    get_trades, get_spots,
 )
 
 urlpatterns = [

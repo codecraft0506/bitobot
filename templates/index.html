@@ -241,17 +241,11 @@
                 <v-data-table
                   :headers="balanceHeaders"
                   :items="balanceData"
-                  :sort-by="['amount']"
+                  :sort-by="['free']"
                   :sort-desc="[true]"
                   class="elevation-1"
                   dense
                 >
-                  <template v-slot:item.enable="{ item }">
-                    [[ item.enable ? '是' : '否' ]]
-                  </template>
-                  <template v-slot:item.tradable="{ item }">
-                    [[ item.tradable ? '可交易' : '不可交易' ]]
-                  </template>
                 </v-data-table>
                 <div v-if="!balanceData || balanceData.length === 0" class="mt-3">
                   <p>目前沒有餘額資料</p>
@@ -321,12 +315,9 @@
         tradeStatus: null,
         balanceData: [],
         balanceHeaders: [
-          { text: '幣別', value: 'currency' },
-          { text: '總額', value: 'amount' },
-          { text: '可用', value: 'available' },
-          { text: '質押數量', value: 'stake' },
-          { text: '是否啟用', value: 'enable' },
-          { text: '是否可交易', value: 'tradable' }
+          { text: '幣別', value: 'asset' },
+          { text: '可用', value: 'free' },
+          { text: '質押數量', value: 'locked'},
         ],
         pairs: [],
         detailsData:[],
@@ -337,6 +328,7 @@
           { text: '價格', value: 'price' },
           { text: '數量', value: 'quantity' },
           { text: '手續費', value: 'fee' },
+          { text: '手續費標的', value: 'fee_symbol'}, 
           { text: '交易日期', value: 'trade_date' },
           { text: '利潤', value: 'profit' } // 可選，僅在賣出交易中顯示
         ],
@@ -373,9 +365,9 @@
           this.loading = true;
           axios.get('/balance/')
             .then(response => {
-              if (response.data.success) {
+              if (response.data.success) {  
                 let balanceObj = response.data.data.balance;
-                this.balanceData = balanceObj.data || []; 
+                this.balanceData = balanceObj || []; 
                 // 清除錯誤訊息
                 this.errorMessages = [];
               } else {
@@ -393,11 +385,11 @@
           axios.get('/get_pairs/')
             .then(response => {
               if(response.data.success) {
-                const arr = response.data.data.data || response.data.data;
+                const arr = response.data.data;
                 this.pairs = arr;
                 // 若尚未啟動交易，則預設選擇第一個交易對
                 if (Array.isArray(this.pairs) && this.pairs.length > 0 && !this.tradeStatus) {
-                  this.trade.symbol = this.pairs[0].pair;
+                  this.trade.symbol = this.pairs[0];
                 }
                 this.errorMessages = [];
               } else {
@@ -519,7 +511,11 @@
           axios.get('/get_trades/')
             .then(response => {
               if (response.data.response.status === "success") {
-                this.detailsData = response.data.response.data; // 更新明細資料
+
+                const sortedData = response.data.response.data.sort((a, b) => {
+                  return new Date(b.trade_date) - new Date(a.trade_date);  // 最新的在前
+                });
+                this.detailsData = sortedData; // 更新明細資料
                 this.errorMessages = [];
               } else {
                 this.addAutoDismissMessage('error', response.data.response.message);

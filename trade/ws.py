@@ -8,22 +8,23 @@ import base64
 import threading
 import websocket
 import ssl
-from decimal import Decimal
+import math
+from decimal import Decimal, ROUND_CEILING
 from datetime import datetime
 from dotenv import load_dotenv
-from .models import Trade,SpotTrade
+from .models import Trade
 from telegram import Bot
 import asyncio
 
 load_dotenv()
 
 # 載入 BitoPro API 的金鑰、密鑰與 Email
-API_KEY = os.getenv('API_KEY')
-API_SECRET = os.getenv('API_SECRET')
-EMAIL = os.getenv('EMAIL')
+API_KEY = os.getenv('BINANCE_API_KEY')
+API_SECRET = os.getenv('BINANCE_API_SECRET')
+EMAIL = os.getenv('BINANCE_EMAIL')
 
 # API 基礎網址
-BASE_URL = "https://api.bitopro.com/v3"
+BASE_URL = "https://api.binance.com/api/v3"
 
 class TradeWSManager:
     _instance = None
@@ -70,27 +71,43 @@ class TradeWSManager:
     def on_message(self, ws, message):
         """監聽 WebSocket 訂單狀態變化"""
         response = json.loads(message)
-        self.history_print("📊 訂單更新:")
 
-        if ('data' in response and 'orderID' in response['data']):
-            order_data = self.get_order_data(response['data']['orderID'])
+        if 'e' in response and response['e'] == 'executionReport':
+            order_id = response.get('i')
+            order_data = self.get_order_data(order_id)
+
+            #  檢查訂單資料是否取得成功
+            if not order_data: 
+                self.history_print(f"無法取得訂單資料 (ID: {order_id}），略過處理")  
+                return  
+            
+            self.history_print("==訂單更新==")
             self.history_print(order_data)
+            if order_data.get('status') == 'NEW':
+                self.history_print('新建訂單')
+                return
+            
+            if order_data.get('status') == "CANCELED":
+                self.history_print('取消訂單')
+                return
+
             self.save_order(order_data)
-            if order_data.get('status') == 0:
-                self.history_print('訂單交易中')
-            if order_data.get('status') == 2:
-                id = order_data.get('id')
-                if id in self.sell_orders:
-                    self.history_print("賣單成交")
+
+            
+
+            if order_data.get('status') == 'FILLED':
+                order_id = order_data.get('orderId')
+                if order_id in self.sell_orders:
+                    self.history_print("==賣單成交==")
                     self.place_order("BUY", self.last_trade_price)
                     self.place_order("SELL", self.last_trade_price + self.origin_price * self.price_increase_percentage * (len(self.sell_orders) + 1))
-                    self.sell_orders.remove(id)
+                    self.sell_orders.remove(order_id)
                     self.last_trade_price = float(order_data.get('price'))
-                elif id in self.buy_orders:
-                    self.history_print("買單成交")
+                elif order_id in self.buy_orders:
+                    self.history_print("==買單成交==")
                     self.place_order("BUY", self.last_trade_price - self.origin_price * self.price_decrease_percentage * (len(self.buy_orders) + 1))
                     self.place_order("SELL", self.last_trade_price)
-                    self.buy_orders.remove(id)
+                    self.buy_orders.remove(order_id)
                     self.last_trade_price = float(order_data.get('price'))
 
     def on_error(self, ws, error):
@@ -126,12 +143,29 @@ class TradeWSManager:
         if self.is_running:
             return "機器人運作中"
         
-        url = 'https://api.bitopro.com/v3/provisioning/trading-pairs'
-        response = requests.get(url)
-        datas = response.json()['data']
-        for data in datas:
-            if data.get('pair') == pair:
-                self.precision = int(data.get('quotePrecision'))
+        url = 'https://api.binance.com/api/v3/exchangeInfo'
+        try:
+            response = requests.get(url)
+            symbol_info = next(
+                (s for s in response.json()['symbols'] if s['symbol'] == pair),
+                None
+            )
+            if symbol_info is None:
+                self.error_message.append(f"找不到交易對資訊: {pair}")
+                return "\n".join(self.error_message)
+            # 設定價格精度（price tick size）
+            for f in symbol_info["filters"]:
+                if  f["filterType"] == "PRICE_FILTER":
+                    self.precision = int(round(-1 * math.log10(float(f["tickSize"]))))
+                    self.tickSize = float(f['tickSize'])
+                elif f["filterType"] == "LOT_SIZE":
+                    self.min_qty_precision = int(round(-1 * math.log10(float(f["minQty"]))))  # 最小下單精度
+                elif f["filterType"] == "NOTIONAL":
+                    self.min_notional = float(f["minNotional"])  # 最小下單金額
+
+        except Exception as e:
+            self.error_message.append(f"取得交易對精度失敗: {e}")
+            return "\n".join(self.error_message)
 
         self.error_message = []  # 清空錯誤訊息列表
         self.pair = pair
@@ -146,16 +180,22 @@ class TradeWSManager:
         self.price_cancel_cv = price_cancel_cv
         self.trade_count = trade_count
 
-        self.history_print("⏳ 嘗試連線中...")
-        self.ws_url = "wss://stream.bitopro.com:443/ws/v1/pub/auth/user-trades"
-        params = {
-            'identity': EMAIL,
-            'nonce': int(time.time() * 1000)
-        }
+        self.history_print("嘗試建立 WebSocket 連線中...")
+
+        listen_key_resp = requests.post(
+            'https://api.binance.com/api/v3/userDataStream',
+            headers={'X-MBX-APIKEY': API_KEY}
+        )
+
+        if listen_key_resp.status_code != 200:
+            self.error_message.append("無法取得 listenKey")
+            return "\n".join(self.error_message)
+        
+        self.listen_key = listen_key_resp.json()['listenKey']
+        self.ws_url = f"wss://stream.binance.com:9443/ws/{self.listen_key}"
 
         self.ws = websocket.WebSocketApp(
             self.ws_url,
-            header=self.get_headers(params),
             on_open=self.on_open,
             on_message=self.on_message,
             on_error=self.on_error,
@@ -167,11 +207,12 @@ class TradeWSManager:
         )
         self.is_running = True
         self.thread.start()
+        self.start_listenkey_keepalive()
 
         # 等待 WS 連線，超時則返回錯誤
         if not self.connected_event.wait(timeout=5):
             self.error_message.append("WS 連線超時")
-            self.history_print("❌ WS 連線超時")
+            self.history_print("WS 連線超時")
             self.stop()
             return "\n".join(self.error_message)
 
@@ -249,19 +290,15 @@ class TradeWSManager:
         return "\n".join(self.error_message) if self.error_message else 0
       
     def reconnect(self, attempt):
-        """嘗試重新連接 WebSocket"""
+        """嘗試重新連接 Binance WebSocket"""
         time.sleep(5)  # 等待 5 秒後重新嘗試連線
 
         self.ws = websocket.WebSocketApp(
             self.ws_url,
-            header=self.get_headers({
-                'identity': EMAIL,
-                'nonce': int(time.time() * 1000)
-            }),
             on_open=self.on_open,
             on_message=self.on_message,
             on_error=self.on_error,
-            on_close=lambda ws, code, msg: self.on_close(ws, code, msg, attempt)  # 傳遞 `attempt` 次數
+            on_close=lambda ws, code, msg: self.on_close(ws, code, msg, attempt)  # 傳遞 attempt 次數
         )
 
         self.thread = threading.Thread(
@@ -283,51 +320,64 @@ class TradeWSManager:
         }
     
     def get_order_data(self, order_id):
-        params = {
-            'pair' : self.pair,
-            'order_id': order_id,
-            'nonce': int(time.time() * 1000)
-        }
-
-        headers = self.get_headers(params)
-
-        url = f'{BASE_URL}/orders/{self.pair}/{order_id}'
-        response = requests.get(url, headers=headers)
-        data = response.json()
-        return data
-        
-    def get_headers(self, params):
-        payload = base64.urlsafe_b64encode(json.dumps(params).encode('utf-8')).decode('utf-8')
+        """使用 Binance API 查詢單筆訂單資訊"""
+        timestamp = int(time.time() * 1000)
+        query_string = f"symbol={self.pair}&orderId={order_id}&timestamp={timestamp}"
         signature = hmac.new(
             bytes(API_SECRET, 'utf-8'),
-            bytes(payload, 'utf-8'),
-            hashlib.sha384
+            bytes(query_string, 'utf-8'),
+            hashlib.sha256
         ).hexdigest()
-        return {
-            "X-BITOPRO-APIKEY": API_KEY,
-            "X-BITOPRO-PAYLOAD": payload,
-            "X-BITOPRO-SIGNATURE": signature,
-        }
+
+        url = f"{BASE_URL}/order?{query_string}&signature={signature}"
+        headers = {"X-MBX-APIKEY": API_KEY}
+        response = requests.get(url, headers=headers)
+
+        try:
+            data = response.json()
+            if response.status_code == 200 and "orderId" in data:
+                return data
+            else:
+                self.history_print(f"❌ 查詢訂單失敗: {data}")
+                return {}
+        except Exception as e:
+            self.history_print(f"❌ get_order_data 發生錯誤: {e}")
+            return {}
 
     def get_current_price(self):
-        url = f"{BASE_URL}/tickers/{self.pair}"
+        url = f"{BASE_URL}/ticker/price?symbol={self.pair}"
         response = requests.get(url)
         data = response.json()
-        return float(data["data"]["lastPrice"])
+        return float(data["price"])
 
     def place_order(self, action, price, is_exceed=False, target_after_exceed=None):
+        url = f"{BASE_URL}/order"
+        
         params = {
-            "action": action,
-            "amount": str(self.order_size),
-            "price": str(round(price, self.precision)),
+            "symbol": self.pair,
+            "side": action.upper(),
             "type": "LIMIT",
+            "timeInForce": "GTC",
+            "quantity": str(self.order_size),
+            "price": str(round(price, self.precision)),
             "timestamp": int(time.time() * 1000)
         }
 
-        headers = self.get_headers(params)
-        url = f"{BASE_URL}/orders/{self.pair}"
-        response = requests.post(url, json=params, headers=headers)
-
+        query_string = "&".join([f"{k}={v}" for k, v in params.items()])
+        signature = hmac.new(
+            API_SECRET.encode("utf-8"),
+            query_string.encode("utf-8"),
+            hashlib.sha256).hexdigest()
+        
+        headers = {
+        "X-MBX-APIKEY": API_KEY
+        }
+    
+        response = requests.post(
+            url + "?" + query_string + f"&signature={signature}",
+            headers=headers
+        )
+    
         if response.status_code == 200:
             order_id = response.json().get("orderId")
 
@@ -341,6 +391,11 @@ class TradeWSManager:
             return order_id
         else:
             error_info = response.json()
+            self.history_print(error_info)
+            if error_info['msg'] == 'Filter failure: NOTIONAL':
+                value = Decimal(str(self.min_notional)) / Decimal(str(self.get_current_price()))
+                min_qty_required = value.quantize(Decimal(f'1e-{self.min_qty_precision}'), rounding=ROUND_CEILING)
+                error_info = f'最小下單數量: {min_qty_required}'
             error_msg = f"下單失敗: {error_info}"
             self.history_print(error_msg)
             if error_msg not in self.error_message : self.error_message.append(error_msg)
@@ -373,77 +428,128 @@ class TradeWSManager:
 
 
     def cancel_all_orders(self):
-        params = {
-            'identity' : EMAIL,
-            'nonce' : int(time.time() * 1000),
-        }
-        
-        headers = self.get_headers(params)
-        url = f'{BASE_URL}/orders/all/'
-        response = requests.delete(url=url, headers=headers)
+        timestamp = int(time.time() * 1000)
+        query_string = f"symbol={self.pair}&timestamp={timestamp}"
+        signature = hmac.new(
+            bytes(API_SECRET, 'utf-8'),
+            bytes(query_string, 'utf-8'),
+            hashlib.sha256
+        ).hexdigest()
+
+        url = f'{BASE_URL}/openOrders?symbol={self.pair}&timestamp={timestamp}&signature={signature}'
+
+        headers = {"X-MBX-APIKEY": API_KEY}
+        response = requests.get(url, headers=headers)
+
         if response.status_code == 200:
+            open_orders = response.json()
+            for order in open_orders:
+                order_id = order.get("orderId")
+                cancel_query = f"symbol={self.pair}&orderId={order_id}&timestamp={int(time.time() * 1000)}"
+                cancel_signature = hmac.new(
+                    bytes(API_SECRET, 'utf-8'),
+                    bytes(cancel_query, 'utf-8'),
+                    hashlib.sha256
+                ).hexdigest()
+
+                cancel_url = f"https://api.binance.com/api/v3/order?{cancel_query}&signature={cancel_signature}"
+                cancel_response = requests.delete(cancel_url, headers=headers)
+                if cancel_response.status_code == 200:
+                    self.history_print(f"✅ 成功取消訂單 {order_id}")
+                else:
+                    self.history_print(f"❌ 取消訂單 {order_id} 失敗: {cancel_response.text}")
+                    self.error_message.append(f"取消訂單 {order_id} 失敗")
+
             self.buy_orders.clear()
             self.sell_orders.clear()
             self.history_print('訂單全部取消成功')
         else:
-            error_info = response.json()
-            error_msg = f'訂單取消失敗 : {error_info}'
+            error_msg = f"❌ 無法取得掛單列表: {response.text}"
             self.error_message.append(error_msg)
             self.history_print(error_msg)
-        time.sleep(1) # API 有一秒限制 防呆用
 
     def cancel_order(self, order_id):
         if order_id is None:
             return
 
-        params = {"identity": EMAIL, "nonce": int(time.time() * 1000)}
-        headers = self.get_headers(params)
-        url = f"{BASE_URL}/orders/{self.pair}/{order_id}"
+        timestamp = int(time.time() * 1000)
+        query_string = f"symbol={self.pair}&orderId={order_id}&timestamp={timestamp}"
+        signature = hmac.new(
+            bytes(API_SECRET, 'utf-8'),
+            bytes(query_string, 'utf-8'),
+            hashlib.sha256
+        ).hexdigest()
+
+        url = f"https://api.binance.com/api/v3/order?{query_string}&signature={signature}"
+        headers = {"X-MBX-APIKEY": API_KEY}
         response = requests.delete(url, headers=headers)
-        if response.status_code == 200:
+
+        try:
+            res_data = response.json()
+        except Exception:
+            res_data = {}
+    
+        if response.status_code == 200 and not res_data.get("code"):
             self.history_print(f"✅ 訂單 {order_id} 取消成功")
         else:
-            error_info = response.json()
-            error_msg = f"❌ 訂單 {order_id} 取消失敗: {error_info}"
+            error_msg = f"❌ 訂單 {order_id} 取消失敗: {res_data}"
             self.error_message.append(error_msg)
             self.history_print(error_msg)
 
     def save_order(self, data):
-        try:
-            quantity = Decimal(data.get('executedAmount'))
-        except Exception as e:
-            quantity = Decimal(0)
-            self.history_print(f"executedAmount Decimal 轉換錯誤: {data.get('executedAmount')}")
+        order_id = data.get('orderId')
+        symbol = data.get('symbol')
 
-        try:
-            price = Decimal(data.get('avgExecutionPrice'))
-        except Exception as e:
-            price = Decimal(0)
-            self.historyprint(f"avgExecutionPrice Decimal 轉換錯誤: {data.get('avgExecutionPrice')}")
-
-        try:
-            fee = Decimal(data.get('fee'))
-        except Exception as e:
-            fee = Decimal(0)
-            self.historyprint(f"fee Decimal 轉換錯誤: {data.get('fee')}")
-
-
+        fee, fee_symbol = self.get_fee_info_from_trades(order_id, symbol)
 
         Trade.objects.update_or_create(
             defaults={
                 'user_email': EMAIL,
-                'id': data.get('id'),
-                'pair': data.get('pair'),
-                'action': data.get('action'),
-                'quantity': quantity,
-                'price': price,
+                'id': order_id,
+                'pair': symbol,
+                'action': data.get('side'),
+                'quantity': Decimal(data.get('executedQty', 0)),
+                'price': Decimal(data.get('price', 0)),
                 'fee': fee,
-                'fee_symbol': data.get('feeSymbol'),
-                'trade_date': data.get('updatedTimestamp'),
-                'trade_or_not' : True if int(data.get('status')) == 2 else False 
+                'fee_symbol': fee_symbol,  # Binance 不回 feeSymbol，需要查成交明細才有
+                'trade_date': data.get('updateTime') or data.get('transactTime'),
+                'trade_or_not': True if data.get('status') == 'FILLED' else False
             },
-            pk = data.get('id')
+            pk=data.get('orderId')
         )
+
+    def get_fee_info_from_trades(self, order_id, symbol):
+        """查詢 Binance 訂單的總手續費與幣別"""
+        fee = Decimal(0)
+        fee_symbol = None
+
+        try:
+            timestamp = int(time.time() * 1000)
+            query_string = f"symbol={symbol}&orderId={order_id}&timestamp={timestamp}"
+            signature = hmac.new(
+                API_SECRET.encode('utf-8'),
+                query_string.encode('utf-8'),
+                hashlib.sha256
+            ).hexdigest()
+            headers = {
+                'X-MBX-APIKEY': API_KEY
+            }
+
+            url = f"{BASE_URL}/myTrades?{query_string}&signature={signature}"
+            response = requests.get(url, headers=headers)
+
+            if response.status_code == 200:
+                trades = response.json()
+                for t in trades:
+                    fee += Decimal(t.get('commission', 0))
+                    fee_symbol = t.get('commissionAsset')
+            else:
+                self.history_print(f"查詢手續費失敗")
+        except Exception as e:
+            self.history_print(f"取得手續費錯誤: {e}")
+
+        return fee, fee_symbol
+
 
     def start_price_timer(self):
         if self.price_timer is not None:
@@ -499,24 +605,16 @@ class TradeWSManager:
         with open("debug.txt", "a", encoding="utf-8") as f:
             f.write(f'{datetime.fromtimestamp(time.time())} : {txt}\n')
 
-'''
-Orders: {'data': [{
-'action': 'BUY',
-'avgExecutionPrice': '0', 
-'fee': '0', 
-'feeSymbol': 'pol', 
-'bitoFee': '0', 
-'executedAmount': '0', 
-'id': '2349437194', 
-'originalAmount': '1', 
-'pair': 'pol_twd', 
-'price': '6.308', 
-'remainingAmount': '1', 
-'seq': 'POLTWD9744129620', 
-'status': 0, 
-'createdTimestamp': 1743782486, 
-'updatedTimestamp': 1743782486, 
-'total': '0', 
-'type': 'LIMIT', 
-'timeInForce': 'GTC'}]}
-'''
+    def start_listenkey_keepalive(self):
+        def keep_alive():
+            while self.is_running:
+                time.sleep(30 * 60)  # 每 30 分鐘
+                requests.put(
+                    'https://api.binance.com/api/v3/userDataStream',
+                    params={'listenKey': self.listen_key},
+                    headers={'X-MBX-APIKEY': API_KEY}
+                )
+                self.history_print("listenKey 已自動續約")
+
+        self.listen_key_thread = threading.Thread(target=keep_alive, daemon=True)
+        self.listen_key_thread.start()
