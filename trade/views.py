@@ -13,7 +13,6 @@ from django.utils import timezone
 from .binance import get_account_balance, get_all_pairs
 from .ws import TradeWSManager, EMAIL
 from .models import Trade
-from .binance import get_all_pairs, get_all_base_assets
 
 # 設定 logger
 logger = logging.getLogger(__name__)
@@ -46,9 +45,9 @@ def balance(request):
 @csrf_exempt
 def get_pairs(request):
     try:
-        result = get_all_pairs()
+        result = trade_ws_manager.get_all_pairs()
         if type(result) == list:
-            return JsonResponse({'success': True, 'data': get_all_pairs()}, status=200)
+            return JsonResponse({'success': True, 'data': result}, status=200)
         else:
             return JsonResponse({'success': False, 'data': result['message']})
     except Exception as e:
@@ -219,7 +218,7 @@ def get_trades(request):
     if request.method == 'GET':
         try:
             result = []
-            pairs = get_all_pairs()
+            pairs = trade_ws_manager.get_all_pairs()
             for pair in pairs:
                 result.extend(get_trades_by_pair(pair))
             result.sort(key=lambda x : x['trade_date'], reverse=True)
@@ -326,7 +325,7 @@ def get_spots(request):
     if request.method == 'GET':
         try:
             result = []
-            pairs = get_all_pairs()
+            pairs = trade_ws_manager.get_all_pairs()
             for pair in pairs:
                 result.extend(get_spots_by_pair(pair))
             result.sort(key=lambda x : x['trade_date'], reverse=True)

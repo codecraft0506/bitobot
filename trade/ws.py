@@ -14,6 +14,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from .models import Trade
 from telegram import Bot
+from .binance import get_all_pairs, get_all_base_assets
 import asyncio
 
 load_dotenv()
@@ -66,6 +67,8 @@ class TradeWSManager:
             self.last_trade_price = None
             self.price_cancel_cv = None
             self.price_reset_cv = None
+            self.all_pairs = get_all_pairs()
+            self.all_base_assets = get_all_base_assets()
             self.history_print('WSM 初始化成功')
 
     def on_message(self, ws, message):
@@ -246,7 +249,11 @@ class TradeWSManager:
         self.cancel_all_orders()
         if self.price_timer is not None:
             self.price_timer.cancel()
-            self.history_print("🛑 已停止價格更新計時器")
+            self.history_print("已停止價格更新計時器")
+        if self.listen_key_timer is not None:
+            self.listen_key_timer.cancel()
+            self.history_print("已停止WS keep_alive")
+        
         if self.ws:
             self.ws.close()
         if self.thread:
@@ -254,12 +261,12 @@ class TradeWSManager:
                 self.thread.join(timeout=5)
             except RuntimeError as e:
                 self.error_message.append(f"WebSocket 錯誤: {e}")
-                self.history_print(f"❌ WebSocket 錯誤: {e}")
+                self.history_print(f"WebSocket 錯誤: {e}")
         self.is_running = False
-        self.history_print("🔴 機器人已停止")
+        self.history_print("機器人已停止")
 
         # 發送 Telegram 通知
-        asyncio.run(self.send_telegram_notification("🔴 交易機器人已停止運行"))
+        asyncio.run(self.send_telegram_notification("交易機器人已停止運行"))
 
         return "\n".join(self.error_message) if self.error_message else 0
 
@@ -272,7 +279,12 @@ class TradeWSManager:
         self.cancel_all_orders()
         if self.price_timer is not None:
             self.price_timer.cancel()
-            self.history_print("🛑 已停止價格更新計時器")
+            self.history_print("已停止價格更新計時器")
+
+        if self.listen_key_timer is not None:
+            self.listen_key_timer.cancel()
+            self.history_print("已停止WS keep_alive")
+
         if self.ws:
             self.ws.close()
         if self.thread:
@@ -280,12 +292,18 @@ class TradeWSManager:
                 self.thread.join(timeout=5)
             except RuntimeError as e:
                 self.error_message.append(f"WebSocket 錯誤: {e}")
-                self.history_print(f"❌ WebSocket 錯誤: {e}")
+                self.history_print(f"WebSocket 錯誤: {e}")
+        if self.listen_key_timer:
+            try:
+                self.thread.join(timeout=5)
+            except RuntimeError as e:
+                self.error_message.append(f"WebSocket 錯誤: {e}")
+                self.history_print(f"WebSocket 錯誤: {e}")
         self.is_running = False
-        self.history_print("🔴 機器人已停止")
+        self.history_print("機器人已停止")
 
         # 發送 Telegram 通知
-        asyncio.run(self.send_telegram_notification("🔴 交易機器人已停止運行"))
+        asyncio.run(self.send_telegram_notification("交易機器人已停止運行"))
 
         return "\n".join(self.error_message) if self.error_message else 0
       
@@ -607,14 +625,18 @@ class TradeWSManager:
 
     def start_listenkey_keepalive(self):
         def keep_alive():
-            while self.is_running:
-                time.sleep(30 * 60)  # 每 30 分鐘
-                requests.put(
-                    'https://api.binance.com/api/v3/userDataStream',
-                    params={'listenKey': self.listen_key},
-                    headers={'X-MBX-APIKEY': API_KEY}
-                )
-                self.history_print("listenKey 已自動續約")
+            requests.put(
+                'https://api.binance.com/api/v3/userDataStream',
+                params={'listenKey': self.listen_key},
+                headers={'X-MBX-APIKEY': API_KEY}
+            )
+            self.history_print("listenKey 已自動續約")
 
-        self.listen_key_thread = threading.Thread(target=keep_alive, daemon=True)
-        self.listen_key_thread.start()
+        self.listen_key_timer = threading.Timer(1800, keep_alive)
+        self.listen_key_timer.start()
+
+    def get_all_pairs(self):
+        return self.all_pairs
+    
+    def get_all_base_assets(self):
+        return self.all_base_assets
